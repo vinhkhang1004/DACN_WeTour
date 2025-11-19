@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WeTour - Đặt Tour Du Lịch</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background: #f8fafc;
+        color: #1e293b;
+        line-height: 1.6;
+      }
+      
+      code {
+        font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+      }
+      
+      input, textarea, select {
+        font-family: inherit;
+        color: #1e293b;
+      }
+      
+      input::placeholder, textarea::placeholder {
+        color: #94a3b8;
+        opacity: 1;
+      }
+      
+      input:focus, textarea:focus, select:focus {
+        outline: none;
+        border-color: #0E7490 !important;
+        box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.1) !important;
+      }
+      
+      select {
+        color: #1e293b;
+      }
+      
+      select option {
+        color: #1e293b;
+        background: #fff;
+      }
+      
+      button {
+        font-family: inherit;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      button:active {
+        transform: scale(0.98);
+      }
+      
+      a {
+        transition: all 0.3s ease;
+      }
+      
+      a:hover {
+        opacity: 0.8;
+      }
+      
+      /* Smooth transitions for all interactive elements */
+      * {
+        transition-property: color, background-color, border-color, transform, box-shadow;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 200ms;
+      }
+      
+      /* Better image rendering */
+      img {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+      }
+      
+      /* Custom scrollbar for webkit browsers - moved to global.css */
+      
+      /* Selection color - moved to global.css */
+      
+      /* Loading animation - moved to global.css */
+      
+      /* Card hover effect */
+      .card-hover {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      .card-hover:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+      }
+      
+      /* Gradient backgrounds */
+      .bg-gradient-primary {
+        background: linear-gradient(135deg, #0E7490 0%, #0891b2 100%);
+      }
+      
+      .bg-gradient-secondary {
+        background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+      }
+      
+      /* Text gradient */
+      .text-gradient {
+        background: linear-gradient(135deg, #0E7490 0%, #0891b2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      /* Glass morphism */
+      .glass {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      
+      /* Shadow utilities */
+      .shadow-soft {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+      
+      .shadow-medium {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      }
+      
+      .shadow-strong {
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+      }
+      
+      .shadow-glow {
+        box-shadow: 0 0 20px rgba(14, 116, 144, 0.3);
+      }
+      
+      /* Border radius utilities */
+      .rounded-soft {
+        border-radius: 8px;
+      }
+      
+      .rounded-medium {
+        border-radius: 12px;
+      }
+      
+      .rounded-strong {
+        border-radius: 16px;
+      }
+      
+      /* Focus ring */
+      .focus-ring:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.2);
+      }
+      
+      /* Backdrop blur support */
+      @supports (backdrop-filter: blur(10px)) {
+        .backdrop-blur {
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+      }
+      
+      /* Smooth page transitions */
+      #root {
+        min-height: 100vh;
+      }
+      
+      /* Better link styles */
+      a {
+        text-decoration: none;
+      }
+      
+      a:focus-visible {
+        outline: 2px solid #0E7490;
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+      
+      /* Disabled state */
+      button:disabled,
+      input:disabled,
+      select:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      
+      /* Loading state */
+      .loading {
+        pointer-events: none;
+        opacity: 0.7;
+      }
+      
+      /* Mobile Responsiveness */
+      @media (max-width: 768px) {
+        body {
+          font-size: 14px;
+        }
+        
+        .container {
+          padding: 0 10px;
+        }
+        
+        .grid-responsive {
+          grid-template-columns: 1fr !important;
+        }
+        
+        .flex-responsive {
+          flex-direction: column !important;
+          gap: 10px !important;
+        }
+        
+        .text-responsive {
+          font-size: 14px !important;
+        }
+        
+        .padding-responsive {
+          padding: 15px !important;
+        }
+        
+        .margin-responsive {
+          margin: 10px 0 !important;
+        }
+        
+        .hero-title {
+          font-size: 28px !important;
+        }
+        
+        .hero-subtitle {
+          font-size: 16px !important;
+        }
+        
+        .card-grid {
+          grid-template-columns: 1fr !important;
+          gap: 15px !important;
+        }
+        
+        .navbar-menu {
+          display: none !important;
+        }
+        
+        .navbar-mobile {
+          display: block !important;
+        }
+      }
+      
+      @media (min-width: 769px) {
+        .navbar-mobile {
+          display: none !important;
+        }
+      }
+      
+      /* Utility classes for responsive design */
+      .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+      .grid-responsive { display: grid; }
+      .flex-responsive { display: flex; }
+      .text-responsive { font-size: 16px; }
+      .padding-responsive { padding: 20px; }
+      .margin-responsive { margin: 20px 0; }
+      .hero-title { font-size: 48px; }
+      .hero-subtitle { font-size: 20px; }
+      .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+      .navbar-menu { display: flex; }
+      .navbar-mobile { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
