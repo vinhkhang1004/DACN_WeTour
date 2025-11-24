@@ -9,6 +9,8 @@ import { LoyaltyTransaction } from "./loyalty/LoyaltyTransaction.js";
 import { Notification } from "./Notification.js";
 import { Post, Category } from "./Post.js";
 import { EmailVerification } from "./EmailVerification.js";
+import { Conversation } from "./Conversation.js";
+import { Message } from "./Message.js";
 
 export const initModels = () => {
   // Relations
@@ -59,6 +61,18 @@ export const initModels = () => {
   // User - Post (author)
   User.hasMany(Post, { foreignKey: "author_id" });
   Post.belongsTo(User, { foreignKey: "author_id" });
+
+  // User - Conversation
+  User.hasMany(Conversation, { foreignKey: "user_id" });
+  Conversation.belongsTo(User, { foreignKey: "user_id" });
+
+  // Conversation - Message
+  Conversation.hasMany(Message, { foreignKey: "conversation_id" });
+  Message.belongsTo(Conversation, { foreignKey: "conversation_id" });
+
+  // User - Message (sender)
+  User.hasMany(Message, { foreignKey: "sender_id" });
+  Message.belongsTo(User, { foreignKey: "sender_id", as: "Sender" });
 };
 
-export { User, Tour, Booking, Payment, Review, Newsletter, Promotion, PromotionUsage, LoyaltyTransaction, Notification, Post, Category, EmailVerification };
+export { User, Tour, Booking, Payment, Review, Newsletter, Promotion, PromotionUsage, LoyaltyTransaction, Notification, Post, Category, EmailVerification, Conversation, Message };

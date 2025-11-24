@@ -57,8 +57,17 @@ export default function Homepage() {
           }
         });
         
+        // Lọc bỏ các ngày đã qua
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const filteredDates = Array.from(allDates).filter(d => {
+          const date = new Date(d);
+          date.setHours(0, 0, 0, 0);
+          return date >= today;
+        });
+        
         // Sort dates and set
-        const sortedDates = Array.from(allDates).sort();
+        const sortedDates = filteredDates.sort();
         setAvailableDates(sortedDates);
         
         // Extract unique destinations from tours
@@ -143,7 +152,7 @@ export default function Homepage() {
       {/* Hero Section with Search */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)",
+          background: "linear-gradient(135deg, rgba(14, 116, 144, 0.85) 0%, rgba(8, 145, 178, 0.85) 100%)",
           color: "#fff",
           padding: "60px 20px 80px",
           textAlign: "center",
@@ -153,6 +162,59 @@ export default function Homepage() {
           overflow: "hidden",
         }}
       >
+        {/* Background Video/Image */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 0,
+            overflow: "hidden",
+          }}
+        >
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              opacity: 0.3,
+            }}
+          >
+            <source src="https://videos.pexels.com/video-files/3045163/3045163-hd_1920_1080_30fps.mp4" type="video/mp4" />
+            {/* Fallback image nếu video không load được */}
+            <img
+              src="https://images.unsplash.com/photo-1488646953014-85cb44e25828?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80"
+              alt="Travel background"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                opacity: 0.3,
+              }}
+            />
+          </video>
+          {/* Fallback image overlay */}
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundImage: "url('https://images.unsplash.com/photo-1488646953014-85cb44e25828?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80')",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              opacity: 0.2,
+            }}
+          />
+        </div>
+        
         {/* Background decoration */}
         <div
           style={{
@@ -163,6 +225,7 @@ export default function Homepage() {
             height: "300px",
             background: "rgba(255,255,255,0.1)",
             borderRadius: "50%",
+            zIndex: 1,
           }}
         />
         <div
@@ -174,10 +237,11 @@ export default function Homepage() {
             height: "200px",
             background: "rgba(255,255,255,0.1)",
             borderRadius: "50%",
+            zIndex: 1,
           }}
         />
 
-        <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{ position: "relative", zIndex: 2 }}>
           <h1 style={{ fontSize: "48px", margin: "0 0 20px", fontWeight: 700 }}>
             🌴 Khám phá thế giới cùng chúng tôi
           </h1>
@@ -299,7 +363,13 @@ export default function Homepage() {
                       }}
                     >
                       <option value="">Chọn ngày khởi hành</option>
-                      {availableDates.map((date, idx) => (
+                      {availableDates.filter(d => {
+                        const date = new Date(d);
+                        date.setHours(0, 0, 0, 0);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        return date >= today;
+                      }).map((date, idx) => (
                         <option key={idx} value={date}>
                           {new Date(date).toLocaleDateString('vi-VN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
                         </option>

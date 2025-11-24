@@ -52,6 +52,7 @@ export default function CheckoutConfirm() {
         booking_date: info.date,
         payment_method: payment.method === "cash" ? null : payment.method,
         promotion_code: promo?.code || null,
+        notes: info.notes || null,
       };
 
       const bookingRes = await api.post("/bookings", bookingData);

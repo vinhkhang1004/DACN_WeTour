@@ -28,15 +28,33 @@ export const Booking = sequelize.define("Booking", {
     type: DataTypes.ENUM("pending", "paid", "completed", "cancelled"), 
     defaultValue: "pending" 
   },
+  notes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: null
+  },
 
   // 👇 Thêm hai khóa ngoại mapping đúng DB
   user_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false,
+    allowNull: true, // Cho phép NULL cho khách chưa đăng nhập
     references: {
       model: "users",
       key: "id"
     }
+  },
+  // Thông tin khách chưa đăng nhập
+  guest_name: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  guest_phone: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  guest_email: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
   tour_id: { 
     type: DataTypes.INTEGER, 

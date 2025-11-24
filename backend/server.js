@@ -17,6 +17,8 @@ import notificationRoutes from "./src/routes/notificationRoutes.js";
 import postRoutes from "./src/routes/postRoutes.js";
 import paymentRoutes from "./src/routes/paymentRoutes.js";
 import aiRoutes from "./src/routes/aiRoutes.js";
+import chatRoutes from "./src/routes/chatRoutes.js";
+import adminChatRoutes from "./src/routes/adminChatRoutes.js";
 import { startNotificationScheduler } from "./src/utils/notificationScheduler.js";
 
 
@@ -43,6 +45,8 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/chat", chatRoutes);
+app.use("/api/admin/chat", adminChatRoutes);
 
 // Healthcheck routes
 app.get("/api/health/db", async (req, res) => {

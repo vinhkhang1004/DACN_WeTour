@@ -13,6 +13,7 @@ export default function CheckoutInfo() {
   const [phone, setPhone] = useState("");
   const [people, setPeople] = useState(1);
   const [date, setDate] = useState("");
+  const [notes, setNotes] = useState("");
   const [tour, setTour] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -34,13 +35,25 @@ export default function CheckoutInfo() {
           }
         }
         
+        // Lọc bỏ các ngày đã qua
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        availableDates = availableDates.filter(d => {
+          const date = new Date(d);
+          date.setHours(0, 0, 0, 0);
+          return date >= today;
+        });
+        
         // Set first available date as default if available
         if (availableDates.length > 0) {
           setDate(availableDates[0]);
         } else if (res.data.departure_date) {
           // Fallback to departure_date for backward compatibility
           const departureDate = new Date(res.data.departure_date);
-          setDate(departureDate.toISOString().split('T')[0]);
+          departureDate.setHours(0, 0, 0, 0);
+          if (departureDate >= today) {
+            setDate(departureDate.toISOString().split('T')[0]);
+          }
         }
       } catch (error) {
         console.error("Error fetching tour:", error);
@@ -95,7 +108,7 @@ export default function CheckoutInfo() {
       }
     }
     
-    const payload = { fullName, email, phone, people, date, tourId };
+    const payload = { fullName, email, phone, people, date, notes, tourId };
     localStorage.setItem("checkout_info", JSON.stringify(payload));
     navigate(`/checkout/payment?tourId=${encodeURIComponent(tourId)}`);
   };
@@ -194,6 +207,15 @@ export default function CheckoutInfo() {
               }
             }
             
+            // Lọc bỏ các ngày đã qua
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            availableDates = availableDates.filter(d => {
+              const date = new Date(d);
+              date.setHours(0, 0, 0, 0);
+              return date >= today;
+            });
+            
             if (availableDates.length > 0) {
               // Show dropdown if admin has selected dates
               return (
@@ -285,6 +307,25 @@ export default function CheckoutInfo() {
               Tối đa {tour.max_people} người
             </div>
           )}
+        </div>
+        <div>
+          <label style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>Ghi chú (tùy chọn)</label>
+          <textarea 
+            placeholder="Nhập ghi chú của bạn (ví dụ: yêu cầu đặc biệt, dị ứng thức ăn, v.v.)" 
+            value={notes} 
+            onChange={e=>setNotes(e.target.value)}
+            rows={4}
+            style={{ 
+              padding: "12px", 
+              border: "1px solid #e5e7eb", 
+              borderRadius: "8px", 
+              fontSize: "16px", 
+              width: "100%", 
+              boxSizing: "border-box",
+              resize: "vertical",
+              fontFamily: "inherit"
+            }}
+          />
         </div>
       </div>
       <div style={{ marginTop: 16, display: "flex", gap: 8 }}>

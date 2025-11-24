@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
+import api from '../services/api';
 
 export default function ChatSupport({ user }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [conversation, setConversation] = useState(null);
   const messagesEndRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -15,54 +19,146 @@ export default function ChatSupport({ user }) {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-    // Initialize with welcome message
-    if (isOpen && messages.length === 0) {
-      setMessages([
-        {
-          id: 1,
-          text: "Xin chào! Tôi có thể giúp gì cho bạn? 😊",
-          sender: 'bot',
-          timestamp: new Date()
-        }
-      ]);
+  // Load conversation and messages
+  const loadConversation = async () => {
+    if (!user) {
+      setMessages([]);
+      setConversation(null);
+      return;
     }
-  }, [isOpen, messages.length]);
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
+    // Check if token exists
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.warn("No token found, user needs to login");
+      setMessages([]);
+      setConversation(null);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await api.get('/chat/conversation');
+      if (response.data.conversation) {
+        setConversation(response.data.conversation);
+        setMessages(response.data.messages || []);
+      } else {
+        setMessages([]);
+        setConversation(null);
+      }
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      if (error.response?.status === 401) {
+        // Token expired or invalid
+        console.warn("Token expired or invalid, clearing messages");
+        setMessages([]);
+        setConversation(null);
+      } else if (error.response?.status !== 401) {
+        // Only show error if not auth error
+        setMessages([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const newMessage = {
-      id: Date.now(),
-      text: inputMessage,
-      sender: 'user',
-      timestamp: new Date()
-    };
+  // Polling for new messages when chat is open
+  useEffect(() => {
+    if (isOpen && user) {
+      const token = localStorage.getItem("token");
+      if (token) {
+        loadConversation();
+        
+        // Poll every 3 seconds for new messages
+        pollingIntervalRef.current = setInterval(() => {
+          const currentToken = localStorage.getItem("token");
+          if (currentToken) {
+            loadConversation();
+          } else {
+            // Stop polling if token is removed
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+            }
+          }
+        }, 3000);
+      }
 
-    setMessages(prev => [...prev, newMessage]);
+      return () => {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+        }
+      };
+    }
+  }, [isOpen, user]);
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || !user) return;
+
+    // Check if token exists
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("Vui lòng đăng nhập để sử dụng chat");
+      return;
+    }
+
+    const messageText = inputMessage.trim();
     setInputMessage('');
     setIsTyping(true);
 
-    // Simulate bot response
-    setTimeout(() => {
-      const responses = [
-        "Cảm ơn bạn đã liên hệ! Tôi sẽ chuyển câu hỏi của bạn đến đội ngũ hỗ trợ.",
-        "Tôi hiểu vấn đề của bạn. Bạn có thể gọi hotline 1900 1234 để được hỗ trợ trực tiếp.",
-        "Để tôi kiểm tra thông tin này cho bạn. Vui lòng chờ một chút...",
-        "Bạn có thể gửi email đến support@travel.com để được hỗ trợ chi tiết hơn.",
-        "Tôi sẽ ghi nhận yêu cầu của bạn và phản hồi trong vòng 24h."
-      ];
+    // Optimistically add user message
+    const tempUserMessage = {
+      id: Date.now(),
+      content: messageText,
+      sender_type: 'user',
+      sender_id: user.id,
+      created_at: new Date(),
+      Sender: { id: user.id, name: user.name, email: user.email }
+    };
+    setMessages(prev => [...prev, tempUserMessage]);
 
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    try {
+      const response = await api.post('/chat/send', {
+        content: messageText
+      });
+
+      // Replace temp message with real message
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== tempUserMessage.id);
+        return [...filtered, response.data.userMessage];
+      });
+
+      // If auto-reply exists, add it
+      if (response.data.autoReply) {
+        setTimeout(() => {
+          setMessages(prev => [...prev, {
+            ...response.data.autoReply,
+            Sender: null
+          }]);
+        }, 500);
+      }
+
+      // Reload conversation to get latest messages
+      setTimeout(() => {
+        loadConversation();
+      }, 1000);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Remove temp message on error
+      setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id));
       
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        text: randomResponse,
-        sender: 'bot',
-        timestamp: new Date()
-      }]);
+      if (error.response?.status === 401) {
+        alert("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+        // Clear invalid token
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        // Optionally redirect to login
+        // window.location.href = "/login";
+      } else {
+        alert('Không thể gửi tin nhắn. Vui lòng thử lại.');
+      }
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -73,10 +169,18 @@ export default function ChatSupport({ user }) {
   };
 
   const formatTime = (timestamp) => {
-    return timestamp.toLocaleTimeString('vi-VN', { 
+    if (!timestamp) return '';
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    return date.toLocaleTimeString('vi-VN', { 
       hour: '2-digit', 
       minute: '2-digit' 
     });
+  };
+
+  const getSenderType = (message) => {
+    if (message.sender_type === 'system') return 'system';
+    if (message.sender_type === 'admin') return 'admin';
+    return 'user';
   };
 
   return (
@@ -100,27 +204,54 @@ export default function ChatSupport({ user }) {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-xs px-3 py-2 rounded-lg ${
-                    message.sender === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}
-                >
-                  <p className="text-sm">{message.text}</p>
-                  <p className={`text-xs mt-1 ${
-                    message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                  }`}>
-                    {formatTime(message.timestamp)}
-                  </p>
-                </div>
+            {loading && messages.length === 0 ? (
+              <div className="text-center text-gray-500 text-sm">Đang tải tin nhắn...</div>
+            ) : messages.length === 0 ? (
+              <div className="text-center text-gray-500 text-sm">
+                Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!
               </div>
-            ))}
+            ) : (
+              messages.map((message) => {
+                const senderType = getSenderType(message);
+                const isUser = senderType === 'user';
+                const isSystem = senderType === 'system';
+                const isAdmin = senderType === 'admin';
+                
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-xs px-3 py-2 rounded-lg ${
+                        isUser
+                          ? 'bg-blue-600 text-white'
+                          : isAdmin
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {isAdmin && (
+                        <p className="text-xs font-semibold mb-1 opacity-90">
+                          👨‍💼 {message.Sender?.name || 'Admin'}
+                        </p>
+                      )}
+                      {isSystem && (
+                        <p className="text-xs font-semibold mb-1 opacity-90">
+                          🤖 Hệ thống
+                        </p>
+                      )}
+                      <p className="text-sm">{message.content}</p>
+                      <p className={`text-xs mt-1 ${
+                        isUser || isAdmin ? 'text-blue-100' : 'text-gray-500'
+                      }`}>
+                        {formatTime(message.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
             
             {isTyping && (
               <div className="flex justify-start">
@@ -138,23 +269,30 @@ export default function ChatSupport({ user }) {
 
           {/* Input */}
           <div className="p-4 border-t">
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Nhập tin nhắn..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim()}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-              >
-                Gửi
-              </button>
-            </div>
+            {!user ? (
+              <div className="text-center text-sm text-gray-500">
+                Vui lòng <a href="/login" className="text-blue-600 hover:underline">đăng nhập</a> để sử dụng chat
+              </div>
+            ) : (
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Nhập tin nhắn..."
+                  disabled={isTyping}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || isTyping}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                >
+                  {isTyping ? '...' : 'Gửi'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

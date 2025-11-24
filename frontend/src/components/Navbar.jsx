@@ -89,13 +89,55 @@ export default function Navbar() {
           <Link
             to="/"
             style={{
-              fontWeight: "bold",
-              fontSize: 20,
-              color: "#fff",
+              display: "flex",
+              alignItems: "center",
               textDecoration: "none",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.opacity = "0.9";
+              e.target.style.transform = "scale(1.05)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.opacity = "1";
+              e.target.style.transform = "scale(1)";
             }}
           >
-            WeTour
+            <img
+              src="/images/wetour-logo.png"
+              alt="WeTour Logo"
+              style={{
+                height: "100px",
+                width: "auto",
+                objectFit: "contain",
+                maxWidth: "350px",
+                backgroundColor: "transparent",
+                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
+              }}
+              onError={(e) => {
+                // Fallback: hiển thị text nếu logo không tìm thấy
+                const img = e.target;
+                const parent = img.parentElement;
+                if (parent) {
+                  img.style.display = "none";
+                  const textFallback = parent.querySelector('.logo-text-fallback');
+                  if (textFallback) {
+                    textFallback.style.display = "block";
+                  }
+                }
+              }}
+            />
+            <span
+              className="logo-text-fallback"
+              style={{
+                fontWeight: "bold",
+                fontSize: 32,
+                color: "#fff",
+                display: "none",
+              }}
+            >
+              WeTour
+            </span>
           </Link>
 
           {/* Mobile Menu Button */}
@@ -256,68 +298,6 @@ export default function Navbar() {
             {/* Nếu đã đăng nhập */}
             {user && (
               <>
-                {/* User Functions - Hiển thị trực tiếp */}
-                <Link 
-                  to="/ai-recommend" 
-                  style={{ 
-                    color: "#fff", 
-                    textDecoration: "none", 
-                    fontWeight: 500,
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    transition: "background-color 0.2s"
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  🤖 AI Gợi ý
-                </Link>
-                <Link 
-                  to="/my-bookings" 
-                  style={{ 
-                    color: "#fff", 
-                    textDecoration: "none", 
-                    fontWeight: 500,
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    transition: "background-color 0.2s"
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  📋 Đặt tour
-                </Link>
-                <Link 
-                  to="/wishlist" 
-                  style={{ 
-                    color: "#fff", 
-                    textDecoration: "none", 
-                    fontWeight: 500,
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    transition: "background-color 0.2s"
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  ❤️ Yêu thích
-                </Link>
-                <Link 
-                  to="/compare" 
-                  style={{ 
-                    color: "#fff", 
-                    textDecoration: "none", 
-                    fontWeight: 500,
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    transition: "background-color 0.2s"
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                >
-                  ⚖️ So sánh
-                </Link>
-
                 {/* Notification Center */}
                 <NotificationCenter user={user} />
 
@@ -493,47 +473,175 @@ export default function Navbar() {
                   </div>
                 )}
 
-                {/* User Info & Logout */}
-                <div className="user-info" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <Link
-                    to="/profile"
-                    style={{
-                      textDecoration: "none",
-                      fontSize: "14px",
-                      color: "rgba(255,255,255,0.9)",
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      transition: "all 0.2s"
-                    }}
-                    onMouseEnter={(e) => e.target.style.background = "rgba(255,255,255,0.1)"}
-                    onMouseLeave={(e) => e.target.style.background = "transparent"}
-                  >
-                    👤 <strong style={{ color: user.role === "admin" ? "#FFD700" : "#fff" }}>{user.name}</strong>
-                  </Link>
+                {/* User Account Dropdown Menu */}
+                <div className="user-info" style={{ position: "relative", display: "flex", alignItems: "center", gap: "12px" }} ref={menuRef}>
                   <button
-                    onClick={handleLogout}
+                    onClick={() => {
+                      const menu = document.getElementById("userMenu");
+                      menu.style.display = menu.style.display === "block" ? "none" : "block";
+                    }}
                     style={{
-                      background: "#ef4444",
+                      background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
                       color: "#fff",
+                      fontWeight: 600,
                       border: "none",
-                      borderRadius: "6px",
-                      padding: "6px 12px",
                       cursor: "pointer",
-                      fontSize: "14px",
-                      fontWeight: 500,
-                      transition: "all 0.2s"
+                      fontSize: 14,
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      transition: "all 0.2s",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)"
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.background = "#dc2626";
                       e.target.style.transform = "translateY(-1px)";
+                      e.target.style.boxShadow = "0 4px 12px rgba(245, 158, 11, 0.4)";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.background = "#ef4444";
                       e.target.style.transform = "translateY(0)";
+                      e.target.style.boxShadow = "0 2px 8px rgba(245, 158, 11, 0.3)";
                     }}
                   >
-                    🚪 Đăng xuất
+                    👤 <strong style={{ color: "#fff" }}>{user.name}</strong> ▼
                   </button>
+
+                  <div
+                    id="userMenu"
+                    style={{
+                      display: "none",
+                      position: "absolute",
+                      top: "100%",
+                      right: 0,
+                      background: "#fff",
+                      color: "#000",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                      borderRadius: "8px",
+                      overflow: "hidden",
+                      zIndex: 1000,
+                      minWidth: "220px",
+                      border: "1px solid #e2e8f0",
+                      marginTop: "8px"
+                    }}
+                    onMouseLeave={() =>
+                      (document.getElementById("userMenu").style.display = "none")
+                    }
+                  >
+                    <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                      <div style={{ fontWeight: 600, color: "#1e293b" }}>👤 Tài khoản</div>
+                      <div style={{ fontSize: "12px", color: "#64748b" }}>{user.email}</div>
+                    </div>
+                    
+                    <Link
+                      to="/profile"
+                      style={{
+                        display: "block",
+                        padding: "12px 16px",
+                        textDecoration: "none",
+                        color: "#374151",
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background-color 0.2s"
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                      onClick={() => document.getElementById("userMenu").style.display = "none"}
+                    >
+                      👤 Thông tin cá nhân
+                    </Link>
+                    
+                    <Link
+                      to="/ai-recommend"
+                      style={{
+                        display: "block",
+                        padding: "12px 16px",
+                        textDecoration: "none",
+                        color: "#374151",
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background-color 0.2s"
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                      onClick={() => document.getElementById("userMenu").style.display = "none"}
+                    >
+                      🤖 AI Gợi ý
+                    </Link>
+                    
+                    <Link
+                      to="/my-bookings"
+                      style={{
+                        display: "block",
+                        padding: "12px 16px",
+                        textDecoration: "none",
+                        color: "#374151",
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background-color 0.2s"
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                      onClick={() => document.getElementById("userMenu").style.display = "none"}
+                    >
+                      📋 Đặt tour
+                    </Link>
+                    
+                    <Link
+                      to="/wishlist"
+                      style={{
+                        display: "block",
+                        padding: "12px 16px",
+                        textDecoration: "none",
+                        color: "#374151",
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background-color 0.2s"
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                      onClick={() => document.getElementById("userMenu").style.display = "none"}
+                    >
+                      ❤️ Yêu thích
+                    </Link>
+                    
+                    <Link
+                      to="/compare"
+                      style={{
+                        display: "block",
+                        padding: "12px 16px",
+                        textDecoration: "none",
+                        color: "#374151",
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background-color 0.2s"
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                      onClick={() => document.getElementById("userMenu").style.display = "none"}
+                    >
+                      ⚖️ So sánh
+                    </Link>
+                    
+                    <button
+                      onClick={() => {
+                        document.getElementById("userMenu").style.display = "none";
+                        handleLogout();
+                      }}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "12px 16px",
+                        background: "transparent",
+                        border: "none",
+                        borderTop: "1px solid #f1f5f9",
+                        color: "#ef4444",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                        transition: "background-color 0.2s"
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = "#fef2f2"}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                    >
+                      🚪 Đăng xuất
+                    </button>
+                  </div>
                 </div>
               </>
             )}

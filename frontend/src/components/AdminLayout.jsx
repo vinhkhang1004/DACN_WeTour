@@ -49,6 +49,10 @@ export default function AdminLayout() {
     {
       path: "/admin/posts",
       label: "Quản lý Blog"
+    },
+    {
+      path: "/admin/chat",
+      label: "💬 Quản lý Chat"
     }
   ];
 

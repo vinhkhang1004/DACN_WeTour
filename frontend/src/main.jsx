@@ -40,6 +40,7 @@ const AdminUserManagement = lazy(() => import("./pages/AdminUserManagement.jsx")
 const AdminAnalyticsPro = lazy(() => import("./pages/AdminAnalyticsPro.jsx"));
 const AdminPromotions = lazy(() => import("./pages/AdminPromotions.jsx"));
 const AdminPosts = lazy(() => import("./pages/AdminPosts.jsx"));
+const AdminChatManagement = lazy(() => import("./pages/AdminChatManagement.jsx"));
 const CheckoutInfo = lazy(() => import("./pages/CheckoutInfo.jsx"));
 const CheckoutPayment = lazy(() => import("./pages/CheckoutPayment.jsx"));
 const CheckoutConfirm = lazy(() => import("./pages/CheckoutConfirm.jsx"));
@@ -106,6 +107,7 @@ createRoot(document.getElementById("root")).render(
             <Route path="analytics-pro" element={<AdminAnalyticsPro />} />
             <Route path="promotions" element={<AdminPromotions />} />
             <Route path="posts" element={<AdminPosts />} />
+            <Route path="chat" element={<AdminChatManagement />} />
             <Route
               path="users"
               element={

@@ -33,8 +33,15 @@ export const sendEmailNotification = async (to, subject, htmlContent) => {
   }
   
   if (!emailUser || !emailPass || emailUser === 'wetour@gmail.com' || emailPass === 'your-app-password') {
-    console.warn('⚠️ Email not configured. Skipping email send.');
-    console.warn('⚠️ Please set EMAIL_USER and EMAIL_PASS in .env file');
+    console.error('❌ Email not configured. Cannot send email.');
+    console.error('❌ Please set EMAIL_USER and EMAIL_PASS in .env file');
+    console.error('❌ For Gmail:');
+    console.error('   1. Enable 2-Step Verification');
+    console.error('   2. Generate App Password at: https://myaccount.google.com/apppasswords');
+    console.error('   3. Use App Password (16 characters) as EMAIL_PASS');
+    console.error('❌ Example .env:');
+    console.error('   EMAIL_USER=your-email@gmail.com');
+    console.error('   EMAIL_PASS=your-16-char-app-password');
     return { success: false, error: 'Email not configured' };
   }
 
@@ -47,11 +54,30 @@ export const sendEmailNotification = async (to, subject, htmlContent) => {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Email sent to:', to, 'Message ID:', info.messageId);
+    console.log('✅ Email sent successfully!');
+    console.log('   To:', to);
+    console.log('   Subject:', subject);
+    console.log('   Message ID:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('❌ Error sending email:', error.message);
-    return { success: false, error: error.message };
+    console.error('❌ Error sending email:');
+    console.error('   To:', to);
+    console.error('   Subject:', subject);
+    console.error('   Error:', error.message);
+    console.error('   Error Code:', error.code);
+    console.error('   Full Error:', error);
+    
+    // Provide helpful error messages
+    let errorMessage = error.message;
+    if (error.code === 'EAUTH') {
+      errorMessage = 'Authentication failed. Check EMAIL_USER and EMAIL_PASS in .env';
+    } else if (error.code === 'ECONNECTION') {
+      errorMessage = 'Connection failed. Check internet connection and SMTP settings';
+    } else if (error.code === 'ETIMEDOUT') {
+      errorMessage = 'Connection timeout. Check SMTP server settings';
+    }
+    
+    return { success: false, error: errorMessage, code: error.code };
   }
 };
 

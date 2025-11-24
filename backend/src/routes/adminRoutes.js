@@ -124,8 +124,15 @@ router.get("/bookings", verifyToken, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Không có quyền" });
   const { limit, sort } = req.query;
   const options = {
-    include: [{ model: Tour }, { model: User }],
+    include: [
+      { model: Tour },
+      { 
+        model: User,
+        required: false // Cho phép NULL user_id (guest bookings)
+      }
+    ],
     order: [["id", "DESC"]]
+    // Sequelize sẽ tự động trả về tất cả các fields của Booking model, bao gồm notes, guest_name, guest_phone, guest_email
   };
   if (limit) options.limit = parseInt(limit);
   const list = await Booking.findAll(options);

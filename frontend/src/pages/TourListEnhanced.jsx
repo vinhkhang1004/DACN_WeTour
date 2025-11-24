@@ -28,6 +28,40 @@ export default function TourListEnhanced() {
   const { user } = useContext(AuthContext);
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Helper function to check if tour has valid dates
+  const hasValidDates = (tour) => {
+    let availableDates = [];
+    if (tour?.available_dates) {
+      try {
+        availableDates = JSON.parse(tour.available_dates);
+        if (!Array.isArray(availableDates)) availableDates = [];
+      } catch {
+        availableDates = [];
+      }
+    }
+    
+    // Lọc bỏ các ngày đã qua
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    availableDates = availableDates.filter(d => {
+      const date = new Date(d);
+      date.setHours(0, 0, 0, 0);
+      return date >= today;
+    });
+    
+    if (availableDates.length > 0) return true;
+    
+    // Check departure_date
+    if (tour?.departure_date) {
+      const departureDate = new Date(tour.departure_date);
+      departureDate.setHours(0, 0, 0, 0);
+      return departureDate >= today;
+    }
+    
+    // Nếu không có available_dates và departure_date, cho phép chọn tự do
+    return true;
+  };
+
   useEffect(() => {
     // Load tours and recent booking stats in parallel
     Promise.all([
@@ -456,6 +490,26 @@ export default function TourListEnhanced() {
           >
             {Number(tour.price).toLocaleString()} ₫
           </div>
+
+          {/* No Dates Badge */}
+          {!hasValidDates(tour) && (
+            <div
+              style={{
+                position: "absolute",
+                top: hasTourPromo ? "48px" : "12px",
+                right: "12px",
+                background: "#ef4444",
+                color: "#fff",
+                padding: "6px 10px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: 700,
+                boxShadow: "0 1px 6px rgba(0,0,0,0.15)",
+              }}
+            >
+              ⚠️ Chưa có ngày
+            </div>
+          )}
         </div>
 
         <div style={{ padding: "20px" }}>

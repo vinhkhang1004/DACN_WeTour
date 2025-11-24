@@ -98,6 +98,7 @@ export default function AdminBookings() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày đi</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số người</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng tiền</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ghi chú</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
                 </tr>
@@ -105,7 +106,7 @@ export default function AdminBookings() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {bookings.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
                       Chưa có đơn đặt tour nào
                     </td>
                   </tr>
@@ -114,8 +115,21 @@ export default function AdminBookings() {
                     <tr key={b.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{b.id}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{b.User?.name || "N/A"}</div>
-                        <div className="text-sm text-gray-500">{b.User?.email || ""}</div>
+                        {b.user_id ? (
+                          <>
+                            <div className="text-sm font-medium text-gray-900">{b.User?.name || "N/A"}</div>
+                            <div className="text-sm text-gray-500">{b.User?.email || ""}</div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-sm font-medium text-gray-900">
+                              {b.guest_name || "Khách chưa đăng nhập"}
+                              <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">Guest</span>
+                            </div>
+                            <div className="text-sm text-gray-500">{b.guest_email || ""}</div>
+                            <div className="text-xs text-gray-400">{b.guest_phone || ""}</div>
+                          </>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm font-medium text-gray-900">{b.Tour?.name || "N/A"}</div>
@@ -127,6 +141,15 @@ export default function AdminBookings() {
                         <div className="text-sm font-medium text-gray-900">{Number(b.total_price).toLocaleString()} ₫</div>
                         {b.discount_amount > 0 && (
                           <div className="text-xs text-green-600">Đã giảm {Number(b.discount_amount).toLocaleString()} ₫</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                        {b.notes ? (
+                          <div className="truncate" title={b.notes}>
+                            {b.notes.length > 50 ? `${b.notes.substring(0, 50)}...` : b.notes}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic">Không có</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

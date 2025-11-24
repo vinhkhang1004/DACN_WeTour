@@ -75,12 +75,28 @@ export default function AdminTourManagement() {
     }
     
     try {
+      // Luôn sử dụng itinerary_days để tạo JSON, bỏ qua formData.itinerary cũ
+      const itineraryJson = JSON.stringify(formData.itinerary_days || []);
+      
       const payload = {
-        ...formData,
+        name: formData.name,
+        destination: formData.destination,
+        price: formData.price,
+        duration: formData.duration,
+        departure_date: formData.departure_date || null,
+        available_dates: JSON.stringify(validDates),
+        description: formData.description || "",
+        image: formData.image || "",
         images: (formData.images || []).join(','),
+        max_people: formData.max_people || null,
+        category: formData.category || "",
         categories: (formData.categories || []).join(','),
-        itinerary: formData.itinerary || JSON.stringify(formData.itinerary_days || []),
-        available_dates: JSON.stringify(validDates)
+        includes: formData.includes || "",
+        excludes: formData.excludes || "",
+        itinerary: itineraryJson,
+        highlights: formData.highlights || "",
+        latitude: formData.latitude || null,
+        longitude: formData.longitude || null
       };
       
       console.log('Payload being sent:', payload);
@@ -599,21 +615,29 @@ export default function AdminTourManagement() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Bao gồm</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ✅ Bao gồm
+                    <span className="text-xs text-gray-500 ml-2">(Mỗi dòng là một mục)</span>
+                  </label>
                   <textarea
-                    rows={3}
+                    rows={6}
                     value={formData.includes}
                     onChange={(e) => setFormData({...formData, includes: e.target.value})}
+                    placeholder="Vé tham quan các điểm du lịch&#10;Xe đưa đón sân bay&#10;Hướng dẫn viên tiếng Việt&#10;Bảo hiểm du lịch&#10;Nước uống trên xe&#10;Phí dịch vụ"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Không bao gồm</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ❌ Không bao gồm
+                    <span className="text-xs text-gray-500 ml-2">(Mỗi dòng là một mục)</span>
+                  </label>
                   <textarea
-                    rows={3}
+                    rows={6}
                     value={formData.excludes}
                     onChange={(e) => setFormData({...formData, excludes: e.target.value})}
+                    placeholder="Chi phí cá nhân&#10;Đồ uống có cồn&#10;Tiền tip cho hướng dẫn viên&#10;Chi phí phát sinh ngoài chương trình&#10;Bảo hiểm cá nhân bổ sung"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

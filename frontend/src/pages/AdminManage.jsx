@@ -23,7 +23,10 @@ export default function AdminManage() {
 
   useEffect(() => {
     api.get("/admin/tours", { headers }).then((res) => setTours(res.data));
-    api.get("/admin/bookings", { headers }).then((res) => setBookings(res.data));
+    api.get("/admin/bookings", { headers }).then((res) => {
+      console.log("Bookings data:", res.data);
+      setBookings(res.data);
+    });
   }, []);
 
   // ✅ Thêm hoặc sửa tour
@@ -271,6 +274,7 @@ export default function AdminManage() {
             <th>Ngày đi</th>
             <th>Số người</th>
             <th>Tổng tiền</th>
+            <th>Ghi chú</th>
             <th>Trạng thái</th>
             <th>Hành động</th>
           </tr>
@@ -279,11 +283,31 @@ export default function AdminManage() {
           {bookings.map((b) => (
             <tr key={b.id}>
               <td>{b.id}</td>
-              <td>{b.User?.fullname || "Ẩn danh"}</td>
+              <td>
+                {b.user_id ? (
+                  b.User?.fullname || "Ẩn danh"
+                ) : (
+                  <div>
+                    <div>{b.guest_name || "Khách chưa đăng nhập"}</div>
+                    <div style={{ fontSize: "12px", color: "#64748b" }}>{b.guest_email || ""}</div>
+                    <div style={{ fontSize: "12px", color: "#64748b" }}>{b.guest_phone || ""}</div>
+                    <span style={{ fontSize: "11px", background: "#fef3c7", color: "#92400e", padding: "2px 6px", borderRadius: "4px" }}>Guest</span>
+                  </div>
+                )}
+              </td>
               <td>{b.Tour?.name}</td>
               <td>{b.booking_date}</td>
               <td>{b.people_count}</td>
               <td>{b.total_price.toLocaleString()}₫</td>
+              <td style={{ maxWidth: "200px", wordWrap: "break-word" }}>
+                {b.notes ? (
+                  <span title={b.notes} style={{ fontSize: "12px", color: "#64748b" }}>
+                    {b.notes.length > 50 ? `${b.notes.substring(0, 50)}...` : b.notes}
+                  </span>
+                ) : (
+                  <span style={{ color: "#9ca3af", fontStyle: "italic" }}>Không có</span>
+                )}
+              </td>
               <td>
                 {b.status === "completed" ? (
                   <span style={{ color: "green", fontWeight: "bold" }}>✔ Hoàn thành</span>

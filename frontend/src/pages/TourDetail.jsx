@@ -10,6 +10,7 @@ export default function TourDetail() {
   const [people, setPeople] = useState(1);
   const [date, setDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [notes, setNotes] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
@@ -20,6 +21,11 @@ export default function TourDetail() {
   const [promotionCode, setPromotionCode] = useState("");
   const [promotion, setPromotion] = useState(null);
   const [checkingPromotion, setCheckingPromotion] = useState(false);
+  const [hasValidDates, setHasValidDates] = useState(true);
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -28,6 +34,42 @@ export default function TourDetail() {
       try {
         const tourRes = await api.get(`/tours/${id}`);
         setTour(tourRes.data);
+        
+        // Kiểm tra có ngày khởi hành hợp lệ không
+        let availableDates = [];
+        if (tourRes.data?.available_dates) {
+          try {
+            availableDates = JSON.parse(tourRes.data.available_dates);
+            if (!Array.isArray(availableDates)) availableDates = [];
+          } catch {
+            availableDates = [];
+          }
+        }
+        
+        // Lọc bỏ các ngày đã qua
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        availableDates = availableDates.filter(d => {
+          const date = new Date(d);
+          date.setHours(0, 0, 0, 0);
+          return date >= today;
+        });
+        
+        // Kiểm tra có ngày hợp lệ không
+        let hasValid = false;
+        if (availableDates.length > 0) {
+          hasValid = true;
+        } else if (tourRes.data?.departure_date) {
+          const departureDate = new Date(tourRes.data.departure_date);
+          departureDate.setHours(0, 0, 0, 0);
+          if (departureDate >= today) {
+            hasValid = true;
+          }
+        } else {
+          // Không có available_dates và departure_date, cho phép chọn tự do
+          hasValid = true;
+        }
+        setHasValidDates(hasValid);
         
         const reviewsRes = await api.get(`/reviews/tour/${id}`);
         setReviews(reviewsRes.data || []);
@@ -59,10 +101,23 @@ export default function TourDetail() {
   };
 
   const handleBooking = async () => {
+    // Nếu chưa đăng nhập, hiển thị form guest
     if (!user) {
-      alert("Bạn cần đăng nhập trước khi đặt tour!");
-      navigate("/login");
-      return;
+      if (!showGuestForm) {
+        setShowGuestForm(true);
+        return;
+      }
+      // Validate guest form
+      if (!guestName || !guestPhone || !guestEmail) {
+        alert("Vui lòng điền đầy đủ thông tin: Họ tên, Số điện thoại và Email");
+        return;
+      }
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(guestEmail)) {
+        alert("Email không hợp lệ");
+        return;
+      }
     }
 
     if (!date) {
@@ -77,26 +132,41 @@ export default function TourDetail() {
 
     setSubmitting(true);
     try {
-      const token = localStorage.getItem("token");
       const bookingData = {
         tour_id: id,
         people_count: people,
         booking_date: date,
         payment_method: paymentMethod,
+        notes: notes || null,
       };
 
       if (promotion && promotion.promotion) {
         bookingData.promotion_code = promotion.promotion.code;
       }
 
-      const response = await api.post(
-        "/bookings",
-        bookingData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // Thêm thông tin guest nếu chưa đăng nhập
+      if (!user) {
+        bookingData.guest_name = guestName;
+        bookingData.guest_phone = guestPhone;
+        bookingData.guest_email = guestEmail;
+      }
+
+      // Gọi API khác nhau cho user và guest
+      const endpoint = user ? "/bookings" : "/bookings/guest";
+      const headers = user ? { Authorization: `Bearer ${localStorage.getItem("token")}` } : {};
+      
+      const response = await api.post(endpoint, bookingData, { headers });
       
       alert("🎉 Đặt tour thành công! Vui lòng kiểm tra email để xác nhận.");
-      navigate("/my-bookings");
+      if (user) {
+        navigate("/my-bookings");
+      } else {
+        // Reset form và quay về trang tour
+        setShowGuestForm(false);
+        setGuestName("");
+        setGuestPhone("");
+        setGuestEmail("");
+      }
     } catch (e) {
       alert("Lỗi đặt tour: " + (e.response?.data?.message || e.message));
     } finally {
@@ -450,6 +520,53 @@ export default function TourDetail() {
             </p>
           </div>
 
+          {/* Included/Excluded Services */}
+          <div
+            style={{
+              background: "#fff",
+              padding: "24px",
+              borderRadius: "12px",
+              marginBottom: "24px",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: "20px", color: "#1e293b", fontSize: "20px" }}>
+              📋 Dịch vụ bao gồm / Không bao gồm
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
+              <div>
+                <h4 style={{ fontSize: "18px", margin: "0 0 12px", color: "#1e293b" }}>✅ Bao gồm</h4>
+                {tour?.includes ? (
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                    {tour.includes.split('\n').filter(item => item.trim()).map((item, index) => (
+                      <li key={index} style={{ padding: "8px 0", fontSize: "14px", color: "#64748b", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                        <span style={{ color: "#10b981", fontSize: "16px" }}>•</span>
+                        <span style={{ flex: 1 }}>{item.trim()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ color: "#64748b", fontStyle: "italic" }}>Chưa có thông tin dịch vụ bao gồm.</p>
+                )}
+              </div>
+              <div>
+                <h4 style={{ fontSize: "18px", margin: "0 0 12px", color: "#1e293b" }}>❌ Không bao gồm</h4>
+                {tour?.excludes ? (
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                    {tour.excludes.split('\n').filter(item => item.trim()).map((item, index) => (
+                      <li key={index} style={{ padding: "8px 0", fontSize: "14px", color: "#64748b", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                        <span style={{ color: "#ef4444", fontSize: "16px" }}>•</span>
+                        <span style={{ flex: 1 }}>{item.trim()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ color: "#64748b", fontStyle: "italic" }}>Chưa có thông tin dịch vụ không bao gồm.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Reviews Section */}
           <div style={{ marginBottom: "24px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -609,20 +726,34 @@ export default function TourDetail() {
                 <label style={{ display: "block", marginBottom: "6px", fontWeight: 500 }}>
                   Ngày khởi hành:
                 </label>
-                <input
-                  type="date"
-                  value={date}
-                  min={minDate}
-                  onChange={(e) => setDate(e.target.value)}
-                  style={{
-                    width: "100%",
+                {!hasValidDates && tour?.available_dates ? (
+                  <div style={{
                     padding: "10px",
-                    border: "1px solid #e5e7eb",
+                    background: "#fef2f2",
+                    border: "1px solid #fecaca",
                     borderRadius: "8px",
+                    color: "#dc2626",
                     fontSize: "14px",
-                  }}
-                  required
-                />
+                    textAlign: "center"
+                  }}>
+                    ⚠️ Chưa có ngày khởi hành
+                  </div>
+                ) : (
+                  <input
+                    type="date"
+                    value={date}
+                    min={minDate}
+                    onChange={(e) => setDate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                    }}
+                    required
+                  />
+                )}
               </div>
 
               <div>
@@ -666,6 +797,105 @@ export default function TourDetail() {
                   <option value="vnpay">🏦 VNPay</option>
                 </select>
               </div>
+
+              {/* Notes */}
+              <div>
+                <label style={{ display: "block", marginBottom: "6px", fontWeight: 500 }}>
+                  Ghi chú (tùy chọn):
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Nhập ghi chú của bạn (ví dụ: yêu cầu đặc biệt, dị ứng thức ăn, v.v.)"
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    resize: "vertical",
+                    fontFamily: "inherit"
+                  }}
+                />
+              </div>
+
+              {/* Guest Form (chỉ hiển thị khi chưa đăng nhập) */}
+              {!user && showGuestForm && (
+                <div style={{ 
+                  padding: "20px", 
+                  background: "#f8fafc", 
+                  borderRadius: "8px",
+                  border: "1px solid #e2e8f0"
+                }}>
+                  <h4 style={{ margin: "0 0 12px", fontSize: "16px", fontWeight: 600, color: "#1e293b" }}>
+                    Thông tin liên hệ
+                  </h4>
+                  <p style={{ margin: "0 0 16px", fontSize: "14px", color: "#64748b" }}>
+                    WeTour sẽ liên hệ tư vấn cho bạn ngay khi nhận được yêu cầu. Vui lòng cung cấp các thông tin dưới đây.
+                  </p>
+                  
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={{ display: "block", marginBottom: "6px", fontWeight: 500 }}>
+                      Họ và Tên <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      placeholder="Nhập họ và tên"
+                      required
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                        fontSize: "14px",
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={{ display: "block", marginBottom: "6px", fontWeight: 500 }}>
+                      Số điện thoại <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={guestPhone}
+                      onChange={(e) => setGuestPhone(e.target.value)}
+                      placeholder="Nhập số điện thoại"
+                      required
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                        fontSize: "14px",
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={{ display: "block", marginBottom: "6px", fontWeight: 500 }}>
+                      Email <span style={{ color: "#ef4444" }}>*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="Nhập email để nhận thông báo"
+                      required
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                        fontSize: "14px",
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Promotion Code */}
               <div>
@@ -769,39 +999,41 @@ export default function TourDetail() {
 
               <button
                 onClick={handleBooking}
-                disabled={submitting || !user || !date}
+                disabled={submitting || !date || !hasValidDates || (!user && showGuestForm && (!guestName || !guestPhone || !guestEmail))}
                 style={{
                   width: "100%",
                   marginTop: "16px",
-                  background: user && date ? "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)" : "#94a3b8",
+                  background: (date && hasValidDates && (!user ? (showGuestForm && guestName && guestPhone && guestEmail) : true)) ? "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)" : "#94a3b8",
                   color: "#fff",
                   border: "none",
                   padding: "16px",
                   borderRadius: "12px",
-                  cursor: submitting || !user || !date ? "not-allowed" : "pointer",
+                  cursor: (submitting || !date || !hasValidDates || (!user && showGuestForm && (!guestName || !guestPhone || !guestEmail))) ? "not-allowed" : "pointer",
                   fontSize: "18px",
                   fontWeight: 700,
                   transition: "all 0.3s ease",
-                  boxShadow: user && date ? "0 4px 16px rgba(14, 116, 144, 0.3)" : "none",
+                  boxShadow: (date && hasValidDates && (!user ? (showGuestForm && guestName && guestPhone && guestEmail) : true)) ? "0 4px 16px rgba(14, 116, 144, 0.3)" : "none",
                 }}
                 onMouseEnter={(e) => {
-                  if (user && date && !submitting) {
+                  if (date && hasValidDates && (!user ? (showGuestForm && guestName && guestPhone && guestEmail) : true) && !submitting) {
                     e.target.style.transform = "translateY(-2px)";
                     e.target.style.boxShadow = "0 6px 20px rgba(14, 116, 144, 0.4)";
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (user && date && !submitting) {
+                  if (date && hasValidDates && (!user ? (showGuestForm && guestName && guestPhone && guestEmail) : true) && !submitting) {
                     e.target.style.transform = "translateY(0)";
                     e.target.style.boxShadow = "0 4px 16px rgba(14, 116, 144, 0.3)";
                   }
                 }}
               >
-                {!user
-                  ? "🔐 Đăng nhập để đặt tour"
+                {!hasValidDates
+                  ? "⚠️ Chưa có ngày khởi hành"
                   : submitting
-                  ? "⏳ Đang xử lý..."
-                  : "🎯 Đặt tour ngay"}
+                  ? "Đang xử lý..."
+                  : !user && !showGuestForm
+                  ? "Gửi yêu cầu"
+                  : "Đặt tour ngay"}
               </button>
 
               {/* Additional Info */}
