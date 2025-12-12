@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import api from "../services/api";
+import { matchesSearch } from "../utils/vietnameseUtils";
 
-export default function SearchAutosuggest({ value, onChange, onSelect }) {
+export default function SearchAutosuggest({ value, onChange, onSelect, placeholder = "Tên tour hoặc địa điểm" }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
@@ -24,18 +25,27 @@ export default function SearchAutosuggest({ value, onChange, onSelect }) {
         const res = await api.get(`/tours?suggest=${encodeURIComponent(q)}`);
         let data = Array.isArray(res.data) ? res.data : [];
         
-        // Lọc và sắp xếp: ưu tiên tour có tên khớp
+        // Lọc và sắp xếp: ưu tiên tour có tên khớp (hỗ trợ không dấu)
         const searchLower = q.toLowerCase();
         data = data.filter((tour) => {
-          const tourNameLower = tour.name?.toLowerCase() || "";
-          const tourDestLower = tour.destination?.toLowerCase() || "";
-          return tourNameLower.includes(searchLower) || tourDestLower.includes(searchLower);
+          const tourName = tour.name || "";
+          const tourDest = tour.destination || "";
+          
+          // Tìm kiếm có dấu
+          const nameMatch = tourName.toLowerCase().includes(searchLower);
+          const destMatch = tourDest.toLowerCase().includes(searchLower);
+          
+          // Tìm kiếm không dấu
+          const nameMatchNoAccent = matchesSearch(tourName, q);
+          const destMatchNoAccent = matchesSearch(tourDest, q);
+          
+          return nameMatch || destMatch || nameMatchNoAccent || destMatchNoAccent;
         });
         
         // Sắp xếp: tour có tên khớp hiển thị trước
         data.sort((a, b) => {
-          const aNameMatch = a.name?.toLowerCase().includes(searchLower);
-          const bNameMatch = b.name?.toLowerCase().includes(searchLower);
+          const aNameMatch = a.name?.toLowerCase().includes(searchLower) || matchesSearch(a.name || "", q);
+          const bNameMatch = b.name?.toLowerCase().includes(searchLower) || matchesSearch(b.name || "", q);
           if (aNameMatch && !bNameMatch) return -1;
           if (!aNameMatch && bNameMatch) return 1;
           return 0;
@@ -57,26 +67,26 @@ export default function SearchAutosuggest({ value, onChange, onSelect }) {
       <input
         value={value}
         onChange={(e)=>onChange(e.target.value)}
-        placeholder="Tên tour hoặc địa điểm"
+        placeholder={placeholder}
         style={{ 
           width: "100%", 
-          padding: "12px 16px", 
-          border: "1px solid #e5e7eb", 
+          padding: "16px 20px", 
+          border: "none", 
           borderRadius: "8px",
-          fontSize: "15px",
+          fontSize: "16px",
           color: "#1e293b",
+          backgroundColor: "#fff",
           outline: "none",
-          transition: "all 0.2s"
+          transition: "all 0.2s",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
         }}
         onFocus={(e)=>{
           if(items.length) setOpen(true);
-          e.target.style.borderColor = "#0E7490";
-          e.target.style.boxShadow = "0 0 0 3px rgba(14, 116, 144, 0.1)";
+          e.target.style.boxShadow = "0 4px 12px rgba(14, 116, 144, 0.2)";
         }}
         onBlur={(e)=>{
           setTimeout(() => {
-            e.target.style.borderColor = "#e5e7eb";
-            e.target.style.boxShadow = "none";
+            e.target.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
           }, 200);
         }}
       />

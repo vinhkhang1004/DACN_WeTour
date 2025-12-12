@@ -9,7 +9,11 @@ import LoadingSpinner from "../components/LoadingSpinner";
 
 export default function Homepage() {
   const [featuredTours, setFeaturedTours] = useState([]);
+  const [allTours, setAllTours] = useState([]);
   const [destinations, setDestinations] = useState([]);
+  const [allDestinations, setAllDestinations] = useState([]);
+  const [promotions, setPromotions] = useState([]);
+  const [allPromotions, setAllPromotions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchDestination, setSearchDestination] = useState("");
@@ -19,20 +23,41 @@ export default function Homepage() {
   const [stats, setStats] = useState({ totalTours: 0, totalUsers: 0, totalBookings: 0 });
   const [availableDates, setAvailableDates] = useState([]);
   const [availableDestinations, setAvailableDestinations] = useState([]);
+  
+  // Carousel states - mỗi phần hiển thị 4 mục
+  const [promoStartIndex, setPromoStartIndex] = useState(0);
+  const [tourStartIndex, setTourStartIndex] = useState(0);
+  const [destStartIndex, setDestStartIndex] = useState(0);
+  const [isPromoTransitioning, setIsPromoTransitioning] = useState(false);
+  const [isTourTransitioning, setIsTourTransitioning] = useState(false);
+  const [isDestTransitioning, setIsDestTransitioning] = useState(false);
+  
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotifications();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [toursRes, statsRes] = await Promise.all([
+        const [toursRes, statsRes, promotionsRes] = await Promise.all([
           api.get("/tours"),
-          api.get("/stats/public")
+          api.get("/stats/public"),
+          // Lấy tất cả promotions có is_active = true, không filter theo ngày để hiển thị cả promotions sắp tới
+          api.get("/promotions", { params: { showAll: true, limit: 100 } }).catch(() => ({ data: { promotions: [] } }))
         ]);
         
         const tours = toursRes.data || [];
-        setFeaturedTours(tours.slice(0, 6));
+        setAllTours(tours);
         setStats(statsRes.data || { totalTours: 0, totalUsers: 0, totalBookings: 0 });
+        
+        // Set all promotions - chỉ lấy những cái is_active = true
+        const promoData = promotionsRes.data?.promotions || promotionsRes.data || [];
+        // Filter chỉ lấy promotions active (backend có thể trả về cả inactive nếu showAll=true)
+        const activePromos = Array.isArray(promoData) 
+          ? promoData.filter(p => p.is_active === true || p.is_active === 1)
+          : [];
+        setAllPromotions(activePromos);
+        
+        console.log("Promotions loaded:", activePromos.length, activePromos);
         
         // Extract all available dates from all tours
         const allDates = new Set();
@@ -95,10 +120,12 @@ export default function Homepage() {
         // Convert to array
         const destList = Object.entries(destMap)
           .map(([name, count]) => ({ name, tours: count, image: destWithImages[name] }))
-          .sort((a, b) => b.tours - a.tours)
-          .slice(0, 6);
+          .sort((a, b) => b.tours - a.tours);
         
-        setDestinations(destList);
+        setAllDestinations(destList);
+        
+        // Khởi tạo sẽ được set trong useEffect carousel cho mỗi phần
+        
         setLoading(false);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -117,6 +144,113 @@ export default function Homepage() {
     
     fetchData();
   }, []);
+
+  // Auto-scroll carousel cho promotions (chuyển slide mỗi 5 giây với fade effect)
+  useEffect(() => {
+    if (allPromotions.length === 0) {
+      setPromotions([]);
+      return;
+    }
+    
+    if (allPromotions.length <= 4) {
+      // Nếu <= 4 mục, chỉ hiển thị tất cả
+      setPromotions(allPromotions);
+      return;
+    }
+    
+    // Khởi tạo 4 mục đầu tiên
+    setPromotions(allPromotions.slice(0, 4));
+    
+    const interval = setInterval(() => {
+      setIsPromoTransitioning(true);
+      
+      // Fade out
+      setTimeout(() => {
+        setPromoStartIndex((prev) => {
+          const nextIndex = (prev + 4) % allPromotions.length;
+          // Lấy 4 mục tiếp theo, nếu hết thì quay lại đầu
+          const nextPromos = [];
+          for (let i = 0; i < 4; i++) {
+            const index = (nextIndex + i) % allPromotions.length;
+            nextPromos.push(allPromotions[index]);
+          }
+          setPromotions(nextPromos);
+          setIsPromoTransitioning(false);
+          return nextIndex;
+        });
+      }, 300); // Fade out trong 300ms
+    }, 5000); // Chuyển slide mỗi 5 giây
+
+    return () => clearInterval(interval);
+  }, [allPromotions]);
+
+  // Auto-scroll carousel cho tours (chuyển slide mỗi 5 giây với fade effect)
+  useEffect(() => {
+    if (allTours.length <= 4) {
+      // Nếu <= 4 mục, chỉ hiển thị tất cả
+      setFeaturedTours(allTours);
+      return;
+    }
+    
+    // Khởi tạo 4 mục đầu tiên
+    setFeaturedTours(allTours.slice(0, 4));
+    
+    const interval = setInterval(() => {
+      setIsTourTransitioning(true);
+      
+      // Fade out
+      setTimeout(() => {
+        setTourStartIndex((prev) => {
+          const nextIndex = (prev + 4) % allTours.length;
+          // Lấy 4 mục tiếp theo, nếu hết thì quay lại đầu
+          const nextTours = [];
+          for (let i = 0; i < 4; i++) {
+            const index = (nextIndex + i) % allTours.length;
+            nextTours.push(allTours[index]);
+          }
+          setFeaturedTours(nextTours);
+          setIsTourTransitioning(false);
+          return nextIndex;
+        });
+      }, 300); // Fade out trong 300ms
+    }, 5000); // Chuyển slide mỗi 5 giây
+
+    return () => clearInterval(interval);
+  }, [allTours]);
+
+  // Auto-scroll carousel cho destinations (chuyển slide mỗi 5 giây với fade effect)
+  useEffect(() => {
+    if (allDestinations.length <= 4) {
+      // Nếu <= 4 mục, chỉ hiển thị tất cả
+      setDestinations(allDestinations);
+      return;
+    }
+    
+    // Khởi tạo 4 mục đầu tiên
+    setDestinations(allDestinations.slice(0, 4));
+    
+    const interval = setInterval(() => {
+      setIsDestTransitioning(true);
+      
+      // Fade out
+      setTimeout(() => {
+        setDestStartIndex((prev) => {
+          const nextIndex = (prev + 4) % allDestinations.length;
+          // Lấy 4 mục tiếp theo, nếu hết thì quay lại đầu
+          const nextDests = [];
+          for (let i = 0; i < 4; i++) {
+            const index = (nextIndex + i) % allDestinations.length;
+            nextDests.push(allDestinations[index]);
+          }
+          setDestinations(nextDests);
+          setIsDestTransitioning(false);
+          return nextIndex;
+        });
+      }, 300); // Fade out trong 300ms
+    }, 5000); // Chuyển slide mỗi 5 giây
+
+    return () => clearInterval(interval);
+  }, [allDestinations]);
 
   const handleSearch = (e) => {
     if (e) e.preventDefault();
@@ -141,235 +275,246 @@ export default function Homepage() {
     setShowAdvancedSearch(false);
   };
 
+  const formatPrice = (price) => {
+    return Number(price).toLocaleString('vi-VN') + 'đ';
+  };
+
+  const getDiscountText = (promotion) => {
+    if (promotion.discount_type === "percentage") {
+      return `Giảm ${promotion.discount_value}%`;
+    } else {
+      return `Giảm ${Number(promotion.discount_value).toLocaleString()} ₫`;
+    }
+  };
+
   return (
-    <div>
+    <div style={{ minHeight: "100vh", background: "#ffffff" }}>
       <Helmet>
         <title>Du lịch giá tốt | Khám phá tour nổi bật</title>
         <meta name="description" content="Đặt tour du lịch giá tốt, nhiều khuyến mãi, trải nghiệm an toàn và chất lượng." />
         <meta property="og:title" content="Du lịch giá tốt | Khám phá tour nổi bật" />
         <meta property="og:description" content="Đặt tour du lịch giá tốt, nhiều khuyến mãi, trải nghiệm an toàn và chất lượng." />
       </Helmet>
-      {/* Hero Section with Search */}
+      <style>
+        {`
+          .homepage-search-autosuggest input {
+            height: 48px !important;
+            padding: 12px 16px !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 8px !important;
+            font-size: 15px !important;
+            box-shadow: none !important;
+          }
+          .homepage-search-autosuggest input:focus {
+            border-color: #005A9C !important;
+            box-shadow: 0 0 0 3px rgba(0, 90, 156, 0.1) !important;
+          }
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          @keyframes fadeInSlide {
+            from {
+              opacity: 0;
+              transform: translateX(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0);
+            }
+          }
+          .carousel-item {
+            animation: fadeInSlide 0.5s ease-out;
+          }
+          .carousel-item-transitioning {
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+          }
+          @media (min-width: 1280px) {
+            .promotions-grid,
+            .tours-grid,
+            .destinations-grid {
+              grid-template-columns: repeat(4, 1fr) !important;
+            }
+          }
+          @media (max-width: 1279px) and (min-width: 968px) {
+            .promotions-grid,
+            .tours-grid,
+            .destinations-grid {
+              grid-template-columns: repeat(3, 1fr) !important;
+            }
+          }
+          @media (max-width: 967px) and (min-width: 640px) {
+            .promotions-grid,
+            .tours-grid,
+            .destinations-grid {
+              grid-template-columns: repeat(2, 1fr) !important;
+            }
+          }
+          @media (max-width: 639px) {
+            .promotions-grid,
+            .tours-grid,
+            .destinations-grid {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}
+      </style>
+
+      {/* Hero Section */}
       <div
         style={{
-          background: "linear-gradient(135deg, rgba(14, 116, 144, 0.85) 0%, rgba(8, 145, 178, 0.85) 100%)",
-          color: "#fff",
-          padding: "60px 20px 80px",
-          textAlign: "center",
-          borderRadius: "0 0 24px 24px",
-          marginBottom: "60px",
           position: "relative",
-          overflow: "hidden",
+          minHeight: "650px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.5)), url("https://lh3.googleusercontent.com/aida-public/AB6AXuBUcdQ017l2SdLQpIwS2-z-JI1dCQeni8pNKwBg1pQqVg5syEiFs4ti6EQy5yN44zNPoObsLZ5gL23g59_JYEm092ZEMkijUvz7e7gcjKdVa9AB7lth2aairXGZo2NVCqwuTOlpKwzmCYbsTR8penTi3CCIO3BCxvgjo4ckimVMyvXDhVELv-lYd4ineAel1MKk0LX6oTrDisXrg8eaNs6SCKlmiNOKPgIZa7KCw8tqZ7g470xmKEAuWhlB7yOeTmHt9XNiiORFOGw")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          padding: "100px 20px 80px",
+          textAlign: "center",
         }}
       >
-        {/* Background Video/Image */}
+        <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+          <h1
+            style={{
+              color: "#fff",
+              fontSize: "clamp(2.5rem, 6vw, 4rem)",
+              fontWeight: 800,
+              lineHeight: 1.2,
+              letterSpacing: "-0.033em",
+              margin: "0 0 20px",
+              textShadow: "0 2px 10px rgba(0,0,0,0.3)",
+            }}
+          >
+            Khám phá những chân trời mới
+          </h1>
+          <h2
+            style={{
+              color: "rgba(255, 255, 255, 0.95)",
+              fontSize: "clamp(1.125rem, 2.5vw, 1.25rem)",
+              fontWeight: 400,
+              lineHeight: 1.6,
+              margin: "0 0 48px",
+              textShadow: "0 1px 5px rgba(0,0,0,0.2)",
+            }}
+          >
+            Hành trình của bạn bắt đầu tại đây. Tìm kiếm các tour du lịch và gói dịch vụ tốt nhất.
+          </h2>
+        </div>
+
+        {/* Search Form */}
         <div
           style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 0,
-            overflow: "hidden",
+            width: "100%",
+            maxWidth: "1100px",
+            padding: "12px",
+            background: "rgba(255, 255, 255, 0.25)",
+            backdropFilter: "blur(12px)",
+            borderRadius: "16px",
+            marginTop: "0",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
           }}
         >
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              opacity: 0.3,
-            }}
-          >
-            <source src="https://videos.pexels.com/video-files/3045163/3045163-hd_1920_1080_30fps.mp4" type="video/mp4" />
-            {/* Fallback image nếu video không load được */}
-            <img
-              src="https://images.unsplash.com/photo-1488646953014-85cb44e25828?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80"
-              alt="Travel background"
+          <form onSubmit={handleSearch}>
+            <div
               style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                opacity: 0.3,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: "8px",
+                background: "#fff",
+                borderRadius: "8px",
+                padding: "16px",
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
               }}
-            />
-          </video>
-          {/* Fallback image overlay */}
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundImage: "url('https://images.unsplash.com/photo-1488646953014-85cb44e25828?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80')",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              opacity: 0.2,
-            }}
-          />
-        </div>
-        
-        {/* Background decoration */}
-        <div
-          style={{
-            position: "absolute",
-            top: "-100px",
-            right: "-100px",
-            width: "300px",
-            height: "300px",
-            background: "rgba(255,255,255,0.1)",
-            borderRadius: "50%",
-            zIndex: 1,
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-50px",
-            left: "-50px",
-            width: "200px",
-            height: "200px",
-            background: "rgba(255,255,255,0.1)",
-            borderRadius: "50%",
-            zIndex: 1,
-          }}
-        />
-
-        <div style={{ position: "relative", zIndex: 2 }}>
-          <h1 style={{ fontSize: "48px", margin: "0 0 20px", fontWeight: 700 }}>
-            🌴 Khám phá thế giới cùng chúng tôi
-          </h1>
-          <p style={{ fontSize: "20px", margin: "0 0 40px", opacity: 0.95 }}>
-            Trải nghiệm những chuyến du lịch tuyệt vời với giá cả hợp lý
-          </p>
-
-          {/* Search Bar */}
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: "16px",
-              padding: "32px",
-              margin: "0 auto 40px",
-              maxWidth: "1000px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-            }}
-          >
-            <h3 style={{ color: "#1e293b", margin: "0 0 24px", fontSize: "22px", fontWeight: 600 }}>
-              🔍 Tìm kiếm tour du lịch
-            </h3>
-            <form onSubmit={handleSearch}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                  gap: "16px",
-                  marginBottom: "24px",
-                }}
-              >
-                <div>
-                  <label style={{ display: "block", marginBottom: "8px", color: "#475569", fontSize: "14px", fontWeight: 600 }}>
-                    Tên tour hoặc địa điểm
-                  </label>
-                  <SearchAutosuggest
-                    value={searchTerm}
-                    onChange={setSearchTerm}
-                    onSelect={(item)=>{
-                      setSearchTerm(item.name);
-                      navigate(`/tour/${item.id}`);
-                    }}
-                  />
+            >
+              {/* Destination Search */}
+              <div style={{ position: "relative", gridColumn: "span 2" }}>
+                <label
+                  style={{
+                    position: "absolute",
+                    top: "-8px",
+                    left: "12px",
+                    fontSize: "12px",
+                    color: "#005A9C",
+                    background: "#fff",
+                    padding: "0 4px",
+                    zIndex: 1,
+                  }}
+                  htmlFor="destination"
+                >
+                  Điểm đến
+                </label>
+                <div style={{ position: "relative", display: "flex", alignItems: "center", height: "100%" }}>
+                  <span style={{ position: "absolute", left: "12px", color: "#9ca3af", fontSize: "20px", zIndex: 2 }}>
+                    📍
+                  </span>
+                  <div style={{ width: "100%", paddingLeft: "40px" }} className="homepage-search-autosuggest">
+                    <SearchAutosuggest
+                      value={searchTerm}
+                      onChange={setSearchTerm}
+                      onSelect={(item) => {
+                        setSearchTerm(item.name);
+                        navigate(`/tour/${item.id}`);
+                      }}
+                      placeholder="Bạn muốn đi đâu?"
+                    />
+                  </div>
                 </div>
+              </div>
 
-                <div style={{ position: "relative", zIndex: 1 }}>
-                  <label style={{ display: "block", marginBottom: "8px", color: "#475569", fontSize: "14px", fontWeight: 600 }}>
-                    Điểm đến
-                  </label>
-                  <select
-                    value={searchDestination}
-                    onChange={(e) => setSearchDestination(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "12px 16px",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                      fontSize: "15px",
-                      color: "#1e293b",
-                      background: "#fff",
-                      outline: "none",
-                      transition: "all 0.2s",
-                      cursor: "pointer",
-                      appearance: "none",
-                      backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E\")",
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 12px center",
-                      paddingRight: "40px",
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = "#0E7490";
-                      e.target.style.boxShadow = "0 0 0 3px rgba(14, 116, 144, 0.1)";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = "#e5e7eb";
-                      e.target.style.boxShadow = "none";
-                    }}
-                  >
-                    <option value="">Tất cả điểm đến</option>
-                    {availableDestinations.map((dest, idx) => (
-                      <option key={idx} value={dest}>
-                        {dest}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ position: "relative", zIndex: 1 }}>
-                  <label style={{ display: "block", marginBottom: "8px", color: "#475569", fontSize: "14px", fontWeight: 600 }}>
-                    Ngày khởi hành
-                  </label>
+              {/* Date Select */}
+              <div style={{ position: "relative" }}>
+                <label
+                  style={{
+                    position: "absolute",
+                    top: "-8px",
+                    left: "12px",
+                    fontSize: "12px",
+                    color: "#005A9C",
+                    background: "#fff",
+                    padding: "0 4px",
+                  }}
+                  htmlFor="dates"
+                >
+                  Ngày
+                </label>
+                <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
+                  <span style={{ position: "absolute", left: "12px", color: "#9ca3af", fontSize: "20px" }}>
+                    📅
+                  </span>
                   {availableDates.length > 0 ? (
                     <select
+                      id="dates"
                       value={searchDate}
                       onChange={(e) => setSearchDate(e.target.value)}
                       style={{
                         width: "100%",
-                        padding: "12px 16px",
-                        paddingRight: "40px",
-                        border: "1px solid #e5e7eb",
+                        height: "48px",
+                        paddingLeft: "40px",
+                        paddingRight: "12px",
+                        border: "1px solid #d1d5db",
                         borderRadius: "8px",
                         fontSize: "15px",
                         color: "#1e293b",
                         background: "#fff",
                         outline: "none",
-                        transition: "all 0.2s",
                         cursor: "pointer",
                         appearance: "none",
-                        backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E\")",
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 12px center",
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = "#0E7490";
-                        e.target.style.boxShadow = "0 0 0 3px rgba(14, 116, 144, 0.1)";
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = "#e5e7eb";
-                        e.target.style.boxShadow = "none";
                       }}
                     >
-                      <option value="">Chọn ngày khởi hành</option>
-                      {availableDates.filter(d => {
-                        const date = new Date(d);
-                        date.setHours(0, 0, 0, 0);
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        return date >= today;
-                      }).map((date, idx) => (
+                      <option value="">Chọn ngày</option>
+                      {availableDates.map((date, idx) => (
                         <option key={idx} value={date}>
                           {new Date(date).toLocaleDateString('vi-VN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
                         </option>
@@ -377,63 +522,62 @@ export default function Homepage() {
                     </select>
                   ) : (
                     <input
+                      id="dates"
                       type="date"
                       value={searchDate}
                       onChange={(e) => setSearchDate(e.target.value)}
                       min={new Date().toISOString().split("T")[0]}
                       style={{
                         width: "100%",
-                        padding: "12px 16px",
-                        border: "1px solid #e5e7eb",
+                        height: "48px",
+                        paddingLeft: "40px",
+                        border: "1px solid #d1d5db",
                         borderRadius: "8px",
                         fontSize: "15px",
-                        color: "#1e293b",
                         outline: "none",
-                        transition: "all 0.2s",
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = "#0E7490";
-                        e.target.style.boxShadow = "0 0 0 3px rgba(14, 116, 144, 0.1)";
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = "#e5e7eb";
-                        e.target.style.boxShadow = "none";
                       }}
                     />
                   )}
                 </div>
+              </div>
 
-                <div style={{ position: "relative", zIndex: 1 }}>
-                  <label style={{ display: "block", marginBottom: "8px", color: "#475569", fontSize: "14px", fontWeight: 600 }}>
-                    Số người
-                  </label>
+              {/* Guests Select */}
+              <div style={{ position: "relative" }}>
+                <label
+                  style={{
+                    position: "absolute",
+                    top: "-8px",
+                    left: "12px",
+                    fontSize: "12px",
+                    color: "#005A9C",
+                    background: "#fff",
+                    padding: "0 4px",
+                  }}
+                  htmlFor="guests"
+                >
+                  Số lượng khách
+                </label>
+                <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
+                  <span style={{ position: "absolute", left: "12px", color: "#9ca3af", fontSize: "20px" }}>
+                    👥
+                  </span>
                   <select
+                    id="guests"
                     value={searchPeople}
                     onChange={(e) => setSearchPeople(Number(e.target.value))}
                     style={{
                       width: "100%",
-                      padding: "12px 16px",
-                      paddingRight: "40px",
-                      border: "1px solid #e5e7eb",
+                      height: "48px",
+                      paddingLeft: "40px",
+                      paddingRight: "12px",
+                      border: "1px solid #d1d5db",
                       borderRadius: "8px",
                       fontSize: "15px",
                       color: "#1e293b",
                       background: "#fff",
                       outline: "none",
-                      transition: "all 0.2s",
                       cursor: "pointer",
                       appearance: "none",
-                      backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E\")",
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 12px center",
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = "#0E7490";
-                      e.target.style.boxShadow = "0 0 0 3px rgba(14, 116, 144, 0.1)";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = "#e5e7eb";
-                      e.target.style.boxShadow = "none";
                     }}
                   >
                     <option value={1}>1 người</option>
@@ -445,451 +589,213 @@ export default function Homepage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                <button
-                  type="submit"
+              {/* Search Button */}
+              <button
+                type="submit"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "8px",
+                  height: "48px",
+                  background: "#005A9C",
+                  color: "#fff",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  gap: "8px",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "#004080";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "#005A9C";
+                }}
+              >
+                <span>🔍</span>
+                Tìm kiếm
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Promotions Section */}
+      <div style={{ padding: "80px 20px", maxWidth: "1280px", margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <h2
+            style={{
+              color: "#333333",
+              fontSize: "36px",
+              fontWeight: 700,
+              lineHeight: 1.2,
+              letterSpacing: "-0.015em",
+              marginBottom: "12px",
+            }}
+          >
+            Ưu đãi không thể bỏ lỡ
+          </h2>
+          <p style={{ color: "#6b7280", fontSize: "18px", margin: 0 }}>
+            Những ưu đãi đặc biệt dành riêng cho bạn
+          </p>
+        </div>
+        {promotions.length > 0 ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "32px",
+              paddingBottom: "16px",
+            }}
+            className="promotions-grid"
+          >
+            {promotions.map((promo, index) => (
+              <div
+                key={`${promo.id || index}-${promoStartIndex}`}
+                className={`carousel-item ${isPromoTransitioning ? 'carousel-item-transitioning' : ''}`}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0",
+                  borderRadius: "16px",
+                  background: "#fff",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                  overflow: "hidden",
+                  transition: "transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease",
+                  cursor: "pointer",
+                  opacity: isPromoTransitioning ? 0 : 1,
+                  height: "100%",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-8px)";
+                  e.currentTarget.style.boxShadow = "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)";
+                }}
+                onClick={() => navigate("/promotions")}
+              >
+                <div
                   style={{
-                    flex: "1 1 auto",
-                    minWidth: "200px",
-                    padding: "14px 24px",
-                    background: "#0E7490",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    boxShadow: "0 4px 12px rgba(14, 116, 144, 0.3)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
+                    width: "100%",
+                    aspectRatio: "16/9",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    backgroundRepeat: "no-repeat",
+                    backgroundImage: promo.image
+                      ? `url(${promo.image})`
+                      : `url("https://lh3.googleusercontent.com/aida-public/AB6AXuArXk9njj3HoiAfhIaMNw6VAI0kWB2fEFQBMe7YM_23S0286lToZsFgVEmaYxZyLp7KIH3lZOLFZwk8PhQmvLeLICKlApLrHaw1DqY7w2z9iJvFVos-SG1lOILcJ5qQPfsOJ4csbevSk-RwqKEY7ezAdw8ap9OfTyv5--OPv56Ri--sYhYN6CSbn5HwCTGOZYKGm5FrzkmrskUlLJAhfspizamgdnRvuggFrzTl6g0GQuzerPCguf55bCLMiFnQ8QgvgJfe4h6HyWE")`,
                   }}
-                  onMouseEnter={(e) => {
-                    e.target.style.background = "#0891b2";
-                    e.target.style.transform = "translateY(-1px)";
-                    e.target.style.boxShadow = "0 6px 16px rgba(14, 116, 144, 0.4)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.background = "#0E7490";
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow = "0 4px 12px rgba(14, 116, 144, 0.3)";
-                  }}
-                >
-                  🔍 Tìm kiếm tour
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/tours")}
-                  style={{
-                    padding: "14px 24px",
-                    background: "#fff",
-                    color: "#0E7490",
-                    border: "2px solid #0E7490",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.background = "#0E7490";
-                    e.target.style.color = "#fff";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.background = "#fff";
-                    e.target.style.color = "#0E7490";
-                  }}
-                >
-                  Xem tất cả tour →
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/promotions")}
-                  style={{
-                    padding: "14px 24px",
-                    background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    boxShadow: "0 4px 12px rgba(245, 158, 11, 0.3)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = "translateY(-1px)";
-                    e.target.style.boxShadow = "0 6px 16px rgba(245, 158, 11, 0.4)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow = "0 4px 12px rgba(245, 158, 11, 0.3)";
-                  }}
-                >
-                  🎁 Xem khuyến mãi
-                </button>
+                />
+                <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-between", padding: "20px", gap: "16px" }}>
+                  <div>
+                    <p
+                      style={{
+                        color: "#333333",
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        lineHeight: 1.5,
+                        margin: "0 0 8px",
+                      }}
+                    >
+                      {promo.title || getDiscountText(promo)}
+                    </p>
+                    <p
+                      style={{
+                        color: "#6b7280",
+                        fontSize: "14px",
+                        fontWeight: 400,
+                        lineHeight: 1.5,
+                        margin: 0,
+                      }}
+                    >
+                      {promo.description || "Khám phá những điểm đến tuyệt vời với ưu đãi đặc biệt."}
+                    </p>
+                  </div>
+                  <button
+                    style={{
+                      display: "flex",
+                      minWidth: "84px",
+                      maxWidth: "480px",
+                      cursor: "pointer",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                      borderRadius: "8px",
+                      height: "40px",
+                      padding: "0 16px",
+                      background: "rgba(0, 90, 156, 0.2)",
+                      color: "#005A9C",
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      letterSpacing: "0.015em",
+                      border: "none",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "rgba(0, 90, 156, 0.3)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "rgba(0, 90, 156, 0.2)";
+                    }}
+                  >
+                    Xem ưu đãi
+                  </button>
+                </div>
               </div>
-            </form>
+            ))}
           </div>
-        </div>
-      </div>
-
-      {/* Features Section */}
-      <div style={{ padding: "0 20px", marginBottom: "60px" }}>
-        <div style={{ textAlign: "center", marginBottom: "40px" }}>
-          <h2 style={{ fontSize: "32px", margin: "0 0 12px", color: "#1e293b" }}>
-            🌟 Tại sao chọn chúng tôi?
-          </h2>
-          <p style={{ fontSize: "18px", color: "#64748b" }}>
-            Những lý do khiến hàng triệu khách hàng tin tưởng
-          </p>
-        </div>
-        
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "24px",
-          }}
-        >
-          <div
-            style={{
-              textAlign: "center",
-              padding: "32px 24px",
-              background: "#fff",
-              borderRadius: "16px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-              border: "1px solid #f1f5f9",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
-            }}
-          >
-            <div style={{ fontSize: "56px", marginBottom: "20px" }}>✈️</div>
-            <h3 style={{ margin: "0 0 12px", color: "#1e293b", fontSize: "20px", fontWeight: 600 }}>Tour chất lượng cao</h3>
-            <p style={{ margin: 0, color: "#64748b", lineHeight: "1.6" }}>
-              Được lựa chọn kỹ lưỡng với nhiều điểm đến hấp dẫn và dịch vụ chuyên nghiệp
-            </p>
-          </div>
-
-          <div
-            style={{
-              textAlign: "center",
-              padding: "32px 24px",
-              background: "#fff",
-              borderRadius: "16px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-              border: "1px solid #f1f5f9",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
-            }}
-          >
-            <div style={{ fontSize: "56px", marginBottom: "20px" }}>💰</div>
-            <h3 style={{ margin: "0 0 12px", color: "#1e293b", fontSize: "20px", fontWeight: 600 }}>Giá tốt nhất thị trường</h3>
-            <p style={{ margin: 0, color: "#64748b", lineHeight: "1.6" }}>
-              Cam kết giá cả cạnh tranh, minh bạch và không phát sinh chi phí ẩn
-            </p>
-          </div>
-
-          <div
-            style={{
-              textAlign: "center",
-              padding: "32px 24px",
-              background: "#fff",
-              borderRadius: "16px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-              border: "1px solid #f1f5f9",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
-            }}
-          >
-            <div style={{ fontSize: "56px", marginBottom: "20px" }}>🛡️</div>
-            <h3 style={{ margin: "0 0 12px", color: "#1e293b", fontSize: "20px", fontWeight: 600 }}>An toàn tuyệt đối</h3>
-            <p style={{ margin: 0, color: "#64748b", lineHeight: "1.6" }}>
-              Đảm bảo an toàn và hỗ trợ 24/7 trong suốt hành trình du lịch
-            </p>
-          </div>
-
-          <div
-            style={{
-              textAlign: "center",
-              padding: "32px 24px",
-              background: "#fff",
-              borderRadius: "16px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-              border: "1px solid #f1f5f9",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
-            }}
-          >
-            <div style={{ fontSize: "56px", marginBottom: "20px" }}>⭐</div>
-            <h3 style={{ margin: "0 0 12px", color: "#1e293b", fontSize: "20px", fontWeight: 600 }}>Đánh giá cao</h3>
-            <p style={{ margin: 0, color: "#64748b", lineHeight: "1.6" }}>
-              Hơn 50,000+ khách hàng hài lòng với điểm đánh giá trung bình 4.8/5
-            </p>
-          </div>
-
-          <div
-            style={{
-              textAlign: "center",
-              padding: "32px 24px",
-              background: "#fff",
-              borderRadius: "16px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-              border: "1px solid #f1f5f9",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
-            }}
-          >
-            <div style={{ fontSize: "56px", marginBottom: "20px" }}>🔄</div>
-            <h3 style={{ margin: "0 0 12px", color: "#1e293b", fontSize: "20px", fontWeight: 600 }}>Hỗ trợ linh hoạt</h3>
-            <p style={{ margin: 0, color: "#64748b", lineHeight: "1.6" }}>
-              Đổi ngày miễn phí, hủy tour linh hoạt và bảo hiểm du lịch toàn diện
-            </p>
-          </div>
-
-          <div
-            style={{
-              textAlign: "center",
-              padding: "32px 24px",
-              background: "#fff",
-              borderRadius: "16px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-              border: "1px solid #f1f5f9",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
-            }}
-          >
-            <div style={{ fontSize: "56px", marginBottom: "20px" }}>📱</div>
-            <h3 style={{ margin: "0 0 12px", color: "#1e293b", fontSize: "20px", fontWeight: 600 }}>Đặt tour dễ dàng</h3>
-            <p style={{ margin: 0, color: "#64748b", lineHeight: "1.6" }}>
-              Giao diện thân thiện, thanh toán an toàn và xác nhận tức thì
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Promotions Banner */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
-          color: "#fff",
-          padding: "40px 20px",
-          margin: "0 20px 60px",
-          borderRadius: "16px",
-          textAlign: "center",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: "-50px",
-            right: "-50px",
-            width: "200px",
-            height: "200px",
-            background: "rgba(255,255,255,0.1)",
-            borderRadius: "50%",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-30px",
-            left: "-30px",
-            width: "150px",
-            height: "150px",
-            background: "rgba(255,255,255,0.1)",
-            borderRadius: "50%",
-          }}
-        />
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <h2 style={{ fontSize: "32px", margin: "0 0 12px", fontWeight: 700 }}>
-            🎉 Khuyến mãi đặc biệt tháng 12
-          </h2>
-          <p style={{ fontSize: "18px", margin: "0 0 24px", opacity: 0.95 }}>
-            Giảm đến 50% cho các tour nước ngoài - Chỉ còn 100 suất!
-          </p>
-          <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
+        ) : (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#64748b" }}>
+            <p style={{ fontSize: "18px", marginBottom: "16px" }}>Chưa có ưu đãi nào</p>
             <Link
               to="/promotions"
               style={{
                 display: "inline-block",
                 padding: "12px 24px",
-                background: "#fff",
-                color: "#f59e0b",
+                background: "#005A9C",
+                color: "#fff",
                 borderRadius: "8px",
                 textDecoration: "none",
                 fontSize: "16px",
                 fontWeight: 600,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                transition: "all 0.3s ease",
+                transition: "all 0.3s",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 6px 16px rgba(0,0,0,0.2)";
+                e.currentTarget.style.background = "#004080";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                e.currentTarget.style.background = "#005A9C";
               }}
             >
-              Xem tất cả khuyến mãi
+              Xem tất cả ưu đãi
             </Link>
-            <div
-              style={{
-                display: "inline-block",
-                padding: "12px 24px",
-                background: "rgba(255,255,255,0.2)",
-                color: "#fff",
-                borderRadius: "8px",
-                fontSize: "16px",
-                fontWeight: 600,
-                border: "2px solid #fff",
-              }}
-            >
-              Mã: FLASH50
-            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Popular Destinations */}
-      <div style={{ padding: "0 20px", marginBottom: "60px" }}>
-        <div style={{ textAlign: "center", marginBottom: "40px" }}>
-          <h2 style={{ fontSize: "32px", margin: "0 0 12px", color: "#1e293b" }}>
-            🗺️ Điểm đến phổ biến
+      {/* Featured Tours Section */}
+      <div id="tours-section" style={{ padding: "80px 20px", maxWidth: "1280px", margin: "0 auto", background: "#f9fafb" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <h2
+            style={{
+              color: "#333333",
+              fontSize: "36px",
+              fontWeight: 700,
+              lineHeight: 1.2,
+              letterSpacing: "-0.015em",
+              marginBottom: "12px",
+            }}
+          >
+            Tour nổi bật
           </h2>
-          <p style={{ fontSize: "18px", color: "#64748b" }}>
-            Khám phá những địa điểm du lịch được yêu thích nhất
-          </p>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "20px",
-            marginBottom: "40px",
-          }}
-        >
-          {destinations.length > 0 ? destinations.map((destination, index) => (
-            <Link
-              key={index}
-              to={`/tours?destination=${encodeURIComponent(destination.name)}`}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <div
-                style={{
-                  position: "relative",
-                  borderRadius: "12px",
-                  overflow: "hidden",
-                  height: "200px",
-                  background: `linear-gradient(45deg, rgba(0,0,0,0.4), rgba(0,0,0,0.2)), url(${destination.image || "https://via.placeholder.com/400x300?text=" + encodeURIComponent(destination.name)})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.25)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    background: "linear-gradient(transparent, rgba(0,0,0,0.8))",
-                    padding: "20px 16px 16px",
-                    color: "#fff",
-                  }}
-                >
-                  <h3 style={{ margin: "0 0 4px", fontSize: "18px", fontWeight: 600 }}>
-                    {destination.name}
-                  </h3>
-                  <p style={{ margin: 0, fontSize: "14px", opacity: 0.9 }}>
-                    {destination.tours} tour
-                  </p>
-                </div>
-              </div>
-            </Link>
-          )) : (
-            <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "#64748b" }}>
-              Chưa có dữ liệu điểm đến
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Featured Tours */}
-      <div style={{ padding: "0 20px", marginBottom: "60px" }}>
-        <div style={{ textAlign: "center", marginBottom: "40px" }}>
-          <h2 style={{ fontSize: "32px", margin: "0 0 12px", color: "#1e293b" }}>
-            🌟 Tour nổi bật
-          </h2>
-          <p style={{ fontSize: "18px", color: "#64748b" }}>
+          <p style={{ color: "#6b7280", fontSize: "18px", margin: 0 }}>
             Những tour được yêu thích nhất trong tháng này
           </p>
         </div>
-
         {loading ? (
           <LoadingSpinner size="large" text="Đang tải tour nổi bật..." />
         ) : featuredTours.length === 0 ? (
@@ -901,113 +807,113 @@ export default function Homepage() {
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-              gap: "24px",
+              gap: "32px",
+              marginBottom: "0",
             }}
+            className="tours-grid"
           >
             {featuredTours.map((tour) => (
               <Link
-                key={tour.id}
+                key={`${tour.id}-${tourStartIndex}`}
                 to={`/tour/${tour.id}`}
-                style={{ textDecoration: "none", color: "inherit" }}
+                className={`carousel-item ${isTourTransitioning ? 'carousel-item-transitioning' : ''}`}
+                style={{ 
+                  textDecoration: "none", 
+                  color: "inherit",
+                  opacity: isTourTransitioning ? 0 : 1,
+                  transition: "opacity 0.3s ease, transform 0.3s ease",
+                }}
               >
                 <div
                   style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "12px",
-                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                    borderRadius: "16px",
                     background: "#fff",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    overflow: "hidden",
                     transition: "all 0.3s ease",
                     cursor: "pointer",
+                    height: "100%",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-4px)";
-                    e.currentTarget.style.boxShadow = "0 8px 16px rgba(0,0,0,0.12)";
+                    e.currentTarget.style.transform = "translateY(-8px)";
+                    e.currentTarget.style.boxShadow = "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
+                    e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)";
                   }}
                 >
-                  <img
-                    src={tour.image || "https://via.placeholder.com/400x250?text=Tour+Image"}
-                    alt={tour.name}
-                    style={{
-                      width: "100%",
-                      height: 200,
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                    onError={(e) => {
-                      e.target.src = "https://via.placeholder.com/400x250?text=Tour+Image";
-                    }}
-                  />
-                  <div style={{ padding: "16px" }}>
+                  <div style={{ position: "relative" }}>
+                    <img
+                      alt={tour.name}
+                      src={tour.image || "https://via.placeholder.com/400x250?text=Tour+Image"}
+                      style={{
+                        height: "224px",
+                        width: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                      onError={(e) => {
+                        e.target.src = "https://via.placeholder.com/400x250?text=Tour+Image";
+                      }}
+                    />
+                    {tour.is_featured && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "8px",
+                          right: "8px",
+                          background: "#FF7F50",
+                          color: "#fff",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          padding: "4px 8px",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        HOT
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ padding: "16px", display: "flex", flexDirection: "column", flexGrow: 1 }}>
                     <h3
                       style={{
-                        margin: "0 0 8px",
                         fontSize: "18px",
-                        fontWeight: 600,
-                        color: "#1e293b",
-                        lineHeight: "1.4",
+                        fontWeight: 700,
+                        color: "#333333",
+                        lineHeight: 1.2,
+                        margin: "0 0 8px",
                       }}
                     >
                       {tour.name}
                     </h3>
                     <p
                       style={{
-                        margin: "0 0 8px",
-                        color: "#64748b",
                         fontSize: "14px",
+                        color: "#6b7280",
+                        margin: "0 0 16px",
                         display: "flex",
                         alignItems: "center",
-                        gap: "6px",
+                        gap: "4px",
                       }}
                     >
-                      📍 {tour.destination}
+                      <span>📍</span>
+                      {tour.destination}
                     </p>
-                    <p
-                      style={{
-                        margin: "0 0 8px",
-                        color: "#64748b",
-                        fontSize: "14px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                      }}
-                    >
-                      ⏱️ {tour.duration}
-                    </p>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginTop: "12px",
-                      }}
-                    >
+                    <div style={{ marginTop: "auto", display: "flex", alignItems: "baseline", gap: "4px" }}>
                       <p
                         style={{
-                          margin: 0,
-                          color: "#0ea5e9",
-                          fontWeight: 700,
                           fontSize: "18px",
+                          fontWeight: 800,
+                          color: "#005A9C",
+                          margin: 0,
                         }}
                       >
-                        {Number(tour.price).toLocaleString()} ₫
+                        {formatPrice(tour.price)}
                       </p>
-                      <span
-                        style={{
-                          padding: "6px 12px",
-                          background: "#0E7490",
-                          color: "#fff",
-                          borderRadius: "6px",
-                          fontSize: "14px",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Xem chi tiết →
-                      </span>
+                      <p style={{ fontSize: "14px", color: "#6b7280", margin: 0 }}>/ người</p>
                     </div>
                   </div>
                 </div>
@@ -1015,181 +921,118 @@ export default function Homepage() {
             ))}
           </div>
         )}
-
-        <div style={{ textAlign: "center", marginTop: "40px" }}>
-          <Link
-            to="/tours"
-            style={{
-              display: "inline-block",
-              padding: "14px 28px",
-              background: "#0E7490",
-              color: "#fff",
-              borderRadius: "8px",
-              textDecoration: "none",
-              fontSize: "16px",
-              fontWeight: 600,
-              transition: "all 0.3s ease",
-              boxShadow: "0 4px 12px rgba(14, 116, 144, 0.3)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#0891b2";
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 6px 16px rgba(14, 116, 144, 0.4)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#0E7490";
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 12px rgba(14, 116, 144, 0.3)";
-            }}
-          >
-            Xem tất cả tour →
-          </Link>
-        </div>
       </div>
 
-      {/* Statistics Section */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #1e293b 0%, #334155 100%)",
-          color: "#fff",
-          padding: "60px 20px",
-          borderRadius: "24px",
-          margin: "0 20px 60px",
-          textAlign: "center",
-        }}
-      >
-        <h2 style={{ fontSize: "32px", margin: "0 0 40px", color: "#fff" }}>
-          📊 Thành tựu của chúng tôi
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "32px",
-          }}
-        >
-          <div>
-            <div style={{ fontSize: "48px", fontWeight: 700, color: "#0ea5e9", marginBottom: "8px" }}>
-              {stats.totalUsers.toLocaleString()}+
-            </div>
-            <p style={{ margin: 0, fontSize: "16px", opacity: 0.9 }}>Khách hàng hài lòng</p>
-          </div>
-          <div>
-            <div style={{ fontSize: "48px", fontWeight: 700, color: "#0ea5e9", marginBottom: "8px" }}>
-              {stats.totalTours.toLocaleString()}+
-            </div>
-            <p style={{ margin: 0, fontSize: "16px", opacity: 0.9 }}>Tour du lịch</p>
-          </div>
-          <div>
-            <div style={{ fontSize: "48px", fontWeight: 700, color: "#0ea5e9", marginBottom: "8px" }}>
-              {stats.totalBookings.toLocaleString()}+
-            </div>
-            <p style={{ margin: 0, fontSize: "16px", opacity: 0.9 }}>Đơn đặt tour</p>
-          </div>
-          <div>
-            <div style={{ fontSize: "48px", fontWeight: 700, color: "#0ea5e9", marginBottom: "8px" }}>
-              4.8/5
-            </div>
-            <p style={{ margin: 0, fontSize: "16px", opacity: 0.9 }}>Đánh giá trung bình</p>
-          </div>
-        </div>
-      </div>
-
-      {/* CTA Section */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
-          padding: "60px 20px",
-          borderRadius: "24px",
-          textAlign: "center",
-          margin: "0 20px 60px",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: "-50px",
-            right: "-50px",
-            width: "200px",
-            height: "200px",
-            background: "rgba(14, 116, 144, 0.1)",
-            borderRadius: "50%",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-30px",
-            left: "-30px",
-            width: "150px",
-            height: "150px",
-            background: "rgba(14, 116, 144, 0.1)",
-            borderRadius: "50%",
-          }}
-        />
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <h2 style={{ fontSize: "32px", margin: "0 0 16px", color: "#1e293b" }}>
-            Sẵn sàng cho chuyến đi của bạn?
-          </h2>
-          <p style={{ fontSize: "18px", color: "#64748b", marginBottom: "32px" }}>
-            Đăng ký ngay để nhận thông tin về các tour mới nhất và ưu đãi đặc biệt
-          </p>
-          <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
-            <Link
-              to="/register"
+      {/* Popular Destinations Section */}
+      <div id="destinations-section" style={{ padding: "80px 20px", background: "#ffffff", width: "100%" }}>
+        <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: "48px" }}>
+            <h2
               style={{
-                display: "inline-block",
-                padding: "14px 28px",
-                background: "#0E7490",
-                color: "#fff",
-                borderRadius: "8px",
-                textDecoration: "none",
-                fontSize: "16px",
-                fontWeight: 600,
-                transition: "all 0.3s ease",
-                boxShadow: "0 4px 12px rgba(14, 116, 144, 0.3)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#0891b2";
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 6px 16px rgba(14, 116, 144, 0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#0E7490";
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(14, 116, 144, 0.3)";
+                color: "#333333",
+                fontSize: "36px",
+                fontWeight: 700,
+                lineHeight: 1.2,
+                letterSpacing: "-0.015em",
+                marginBottom: "12px",
               }}
             >
-              Đăng ký ngay →
-            </Link>
-            <Link
-              to="/newsletter"
-              style={{
-                display: "inline-block",
-                padding: "14px 28px",
-                background: "rgba(14, 116, 144, 0.1)",
-                color: "#0E7490",
-                borderRadius: "8px",
-                textDecoration: "none",
-                fontSize: "16px",
-                fontWeight: 600,
-                border: "2px solid #0E7490",
-                transition: "all 0.3s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#0E7490";
-                e.currentTarget.style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(14, 116, 144, 0.1)";
-                e.currentTarget.style.color = "#0E7490";
-              }}
-            >
-              📧 Nhận newsletter
-            </Link>
+              Địa điểm nổi bật
+            </h2>
+            <p style={{ color: "#6b7280", fontSize: "18px", margin: 0 }}>
+              Khám phá những địa điểm du lịch được yêu thích nhất
+            </p>
           </div>
+          {destinations.length > 0 ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                gap: "32px",
+                marginBottom: "0",
+              }}
+              className="destinations-grid"
+            >
+              {destinations.map((destination, index) => (
+                <Link
+                  key={`${destination.name}-${destStartIndex}`}
+                  to={`/tours?destination=${encodeURIComponent(destination.name)}`}
+                  className={`carousel-item ${isDestTransitioning ? 'carousel-item-transitioning' : ''}`}
+                  style={{ 
+                    textDecoration: "none", 
+                    color: "inherit",
+                    opacity: isDestTransitioning ? 0 : 1,
+                    transition: "opacity 0.3s ease, transform 0.3s ease",
+                  }}
+                >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        borderRadius: "16px",
+                        background: "#fff",
+                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                        overflow: "hidden",
+                        transition: "all 0.3s ease",
+                        cursor: "pointer",
+                        height: "100%",
+                      }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-8px)";
+                      e.currentTarget.style.boxShadow = "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)";
+                    }}
+                  >
+                    <div style={{ position: "relative" }}>
+                      <img
+                        alt={destination.name}
+                        src={destination.image || `https://via.placeholder.com/400x300?text=${encodeURIComponent(destination.name)}`}
+                        style={{
+                          height: "224px",
+                          width: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                        onError={(e) => {
+                          e.target.src = `https://via.placeholder.com/400x300?text=${encodeURIComponent(destination.name)}`;
+                        }}
+                      />
+                    </div>
+                    <div style={{ padding: "16px", display: "flex", flexDirection: "column", flexGrow: 1 }}>
+                      <h3
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: 700,
+                          color: "#333333",
+                          lineHeight: 1.2,
+                          margin: "0 0 8px",
+                        }}
+                      >
+                        {destination.name}
+                      </h3>
+                      <p
+                        style={{
+                          fontSize: "14px",
+                          color: "#6b7280",
+                          margin: 0,
+                          flex: 1,
+                        }}
+                      >
+                        {destination.tours} tour du lịch
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+              Chưa có dữ liệu điểm đến
+            </div>
+          )}
         </div>
       </div>
 
@@ -1203,4 +1046,3 @@ export default function Homepage() {
     </div>
   );
 }
-

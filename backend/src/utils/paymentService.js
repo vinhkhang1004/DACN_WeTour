@@ -115,7 +115,19 @@ export const createMoMoPaymentUrl = async (orderId, amount, orderInfo) => {
   const requestType = "captureWallet";
   const extraData = "";
 
-  const rawSignature = `accessKey=${MOMO_CONFIG.accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${MOMO_CONFIG.notifyUrl}&orderId=${orderId_momo}&orderInfo=${orderInfo}&partnerCode=${MOMO_CONFIG.partnerCode}&redirectUrl=${MOMO_CONFIG.returnUrl}&requestId=${requestId}&requestType=${requestType}`;
+  // Đảm bảo amount là số nguyên (MoMo yêu cầu)
+  const amountInt = Math.round(amount);
+  
+  // Log để debug
+  console.log("\n=== Creating MoMo Payment ===");
+  console.log("Order ID:", orderId_momo);
+  console.log("Amount:", amount, "->", amountInt);
+  console.log("Partner Code:", MOMO_CONFIG.partnerCode);
+  console.log("Return URL:", MOMO_CONFIG.returnUrl);
+  console.log("Notify URL:", MOMO_CONFIG.notifyUrl);
+  console.log("=============================\n");
+
+  const rawSignature = `accessKey=${MOMO_CONFIG.accessKey}&amount=${amountInt}&extraData=${extraData}&ipnUrl=${MOMO_CONFIG.notifyUrl}&orderId=${orderId_momo}&orderInfo=${orderInfo}&partnerCode=${MOMO_CONFIG.partnerCode}&redirectUrl=${MOMO_CONFIG.returnUrl}&requestId=${requestId}&requestType=${requestType}`;
 
   const signature = crypto
     .createHmac("sha256", MOMO_CONFIG.secretKey)
@@ -127,7 +139,7 @@ export const createMoMoPaymentUrl = async (orderId, amount, orderInfo) => {
     partnerName: "Travel Booking",
     storeId: "MOMO",
     requestId: requestId,
-    amount: amount,
+    amount: amountInt, // Đảm bảo là số nguyên
     orderId: orderId_momo,
     orderInfo: orderInfo,
     redirectUrl: MOMO_CONFIG.returnUrl,
@@ -138,6 +150,8 @@ export const createMoMoPaymentUrl = async (orderId, amount, orderInfo) => {
     extraData: extraData,
     signature: signature,
   };
+  
+  console.log("Request Body:", JSON.stringify(requestBody, null, 2));
 
   try {
     // Use Node.js built-in https module
@@ -165,6 +179,37 @@ export const createMoMoPaymentUrl = async (orderId, amount, orderInfo) => {
         res.on("end", () => {
           try {
             const result = JSON.parse(data);
+            
+            // Log response để debug
+            console.log("\n=== MoMo Payment Response ===");
+            console.log("Status Code:", res.statusCode);
+            console.log("Response:", JSON.stringify(result, null, 2));
+            console.log("=============================\n");
+            
+            // Kiểm tra lỗi từ MoMo
+            if (res.statusCode !== 200) {
+              console.error("MoMo API returned non-200 status:", res.statusCode);
+              resolve({
+                payUrl: null,
+                message: result.message || result.localMessage || `MoMo API error: ${res.statusCode}`,
+                resultCode: result.resultCode,
+                result: result
+              });
+              return;
+            }
+            
+            // Kiểm tra resultCode từ MoMo
+            if (result.resultCode && result.resultCode !== 0) {
+              console.error("MoMo returned error resultCode:", result.resultCode);
+              resolve({
+                payUrl: null,
+                message: result.message || result.localMessage || `MoMo error code: ${result.resultCode}`,
+                resultCode: result.resultCode,
+                result: result
+              });
+              return;
+            }
+            
             resolve(result);
           } catch (e) {
             reject(new Error("Invalid JSON response"));

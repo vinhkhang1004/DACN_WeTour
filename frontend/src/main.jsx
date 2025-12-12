@@ -33,7 +33,6 @@ const FAQ = lazy(() => import("./pages/FAQ.jsx"));
 const Destinations = lazy(() => import("./pages/Destinations.jsx"));
 const Wishlist = lazy(() => import("./pages/Wishlist.jsx"));
 const TourComparison = lazy(() => import("./pages/TourComparisonEnhanced.jsx"));
-const AdminAnalytics = lazy(() => import("./pages/AdminAnalytics.jsx"));
 const AdminDashboardPro = lazy(() => import("./pages/AdminDashboardPro.jsx"));
 const AdminTourManagement = lazy(() => import("./pages/AdminTourManagement.jsx"));
 const AdminUserManagement = lazy(() => import("./pages/AdminUserManagement.jsx"));
@@ -41,6 +40,15 @@ const AdminAnalyticsPro = lazy(() => import("./pages/AdminAnalyticsPro.jsx"));
 const AdminPromotions = lazy(() => import("./pages/AdminPromotions.jsx"));
 const AdminPosts = lazy(() => import("./pages/AdminPosts.jsx"));
 const AdminChatManagement = lazy(() => import("./pages/AdminChatManagement.jsx"));
+const CustomTourDesign = lazy(() => import("./pages/CustomTourDesign.jsx"));
+const AdminCustomTours = lazy(() => import("./pages/AdminCustomTours.jsx"));
+const HotelSearch = lazy(() => import("./pages/HotelSearch.jsx"));
+const HotelDetail = lazy(() => import("./pages/HotelDetail.jsx"));
+const HotelBooking = lazy(() => import("./pages/HotelBooking.jsx"));
+const AdminHotelManagement = lazy(() => import("./pages/AdminHotelManagement.jsx"));
+const AdminHotelBookings = lazy(() => import("./pages/AdminHotelBookings.jsx"));
+const AdminFlightManagement = lazy(() => import("./pages/AdminFlightManagement.jsx"));
+const AdminFlightBookings = lazy(() => import("./pages/AdminFlightBookings.jsx"));
 const CheckoutInfo = lazy(() => import("./pages/CheckoutInfo.jsx"));
 const CheckoutPayment = lazy(() => import("./pages/CheckoutPayment.jsx"));
 const CheckoutConfirm = lazy(() => import("./pages/CheckoutConfirm.jsx"));
@@ -51,6 +59,12 @@ const UserDashboard = lazy(() => import("./pages/UserDashboardEnhanced.jsx"));
 const Terms = lazy(() => import("./pages/Terms.jsx"));
 const Privacy = lazy(() => import("./pages/Privacy.jsx"));
 const AdminLayout = lazy(() => import("./components/AdminLayout.jsx"));
+const FlightSearch = lazy(() => import("./pages/FlightSearch.jsx"));
+const FlightDetail = lazy(() => import("./pages/FlightDetail.jsx"));
+const FlightBooking = lazy(() => import("./pages/FlightBooking.jsx"));
+const FlightConfirmation = lazy(() => import("./pages/FlightConfirmation.jsx"));
+const TourConfirmation = lazy(() => import("./pages/TourConfirmation.jsx"));
+const HotelConfirmation = lazy(() => import("./pages/HotelConfirmation.jsx"));
 
 
 
@@ -81,12 +95,22 @@ createRoot(document.getElementById("root")).render(
           <Route path="blog/create" element={<CreateBlog />} />
           <Route path="profile" element={<UserProfile />} />
           <Route path="ai-recommend" element={<AITourRecommendation />} />
+          <Route path="custom-tour" element={<CustomTourDesign />} />
+          <Route path="hotels" element={<HotelSearch />} />
+          <Route path="hotels/:id" element={<HotelDetail />} />
+          <Route path="hotels/:id/book" element={<HotelBooking />} />
           <Route path="faq" element={<FAQ />} />
           <Route path="newsletter" element={<Newsletter />} />
           <Route path="promotions" element={<Promotions />} />
           <Route path="dashboard" element={<UserDashboard />} />
           <Route path="terms" element={<Terms />} />
           <Route path="privacy" element={<Privacy />} />
+          <Route path="flights" element={<FlightSearch />} />
+          <Route path="flights/:id" element={<FlightDetail />} />
+          <Route path="flights/:id/book" element={<FlightBooking />} />
+          <Route path="flights/booking/:id/confirm" element={<FlightConfirmation />} />
+          <Route path="tour/booking/:id/confirm" element={<TourConfirmation />} />
+          <Route path="hotel/booking/:id/confirm" element={<HotelConfirmation />} />
             <Route path="checkout/info" element={<CheckoutInfo />} />
             <Route path="checkout/payment" element={<CheckoutPayment />} />
             <Route path="checkout/confirm" element={<CheckoutConfirm />} />
@@ -108,6 +132,11 @@ createRoot(document.getElementById("root")).render(
             <Route path="promotions" element={<AdminPromotions />} />
             <Route path="posts" element={<AdminPosts />} />
             <Route path="chat" element={<AdminChatManagement />} />
+            <Route path="custom-tours" element={<AdminCustomTours />} />
+            <Route path="hotels" element={<AdminHotelManagement />} />
+            <Route path="hotel-bookings" element={<AdminHotelBookings />} />
+            <Route path="flights" element={<AdminFlightManagement />} />
+            <Route path="flight-bookings" element={<AdminFlightBookings />} />
             <Route
               path="users"
               element={

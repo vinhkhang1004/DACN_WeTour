@@ -186,16 +186,35 @@ router.put("/me", verifyToken, async (req, res) => {
     const user = await User.findByPk(req.user.id);
     if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng" });
 
-    const { name, phone, address } = req.body;
+    const { name, phone, address, avatar, date_of_birth, gender } = req.body;
+    
+    // Kiểm tra kích thước avatar nếu là base64
+    if (avatar && avatar.startsWith('data:image')) {
+      // Base64 string có thể rất lớn, giới hạn khoảng 500KB
+      const base64Length = avatar.length;
+      const estimatedSizeKB = (base64Length * 3) / 4 / 1024; // Ước tính kích thước
+      
+      if (estimatedSizeKB > 500) {
+        return res.status(400).json({ 
+          message: "Ảnh đại diện quá lớn. Vui lòng chọn ảnh nhỏ hơn hoặc nén ảnh trước khi upload." 
+        });
+      }
+    }
     
     // User không thể tự thay đổi role hoặc email
     const updateData = {
-      name: name || user.name,
+      name: name !== undefined ? name : user.name,
       phone: phone !== undefined ? phone : user.phone,
-      address: address !== undefined ? address : user.address
+      address: address !== undefined ? address : user.address,
+      avatar: avatar !== undefined ? avatar : user.avatar,
+      date_of_birth: date_of_birth !== undefined ? date_of_birth : user.date_of_birth,
+      gender: gender !== undefined ? gender : user.gender
     };
 
     await user.update(updateData);
+    
+    // Reload user to get updated data
+    await user.reload();
     
     res.json({ 
       message: "Cập nhật thông tin thành công",
@@ -205,10 +224,20 @@ router.put("/me", verifyToken, async (req, res) => {
         email: user.email,
         phone: user.phone,
         address: user.address,
+        avatar: user.avatar,
+        date_of_birth: user.date_of_birth,
+        gender: user.gender,
         role: user.role
       }
     });
   } catch (e) {
+    console.error("Error updating profile:", e);
+    // Kiểm tra lỗi MySQL packet size
+    if (e.message && e.message.includes('max_allowed_packet')) {
+      return res.status(400).json({ 
+        message: "Ảnh đại diện quá lớn. Vui lòng chọn ảnh nhỏ hơn hoặc nén ảnh trước khi upload." 
+      });
+    }
     res.status(500).json({ message: e.message });
   }
 });

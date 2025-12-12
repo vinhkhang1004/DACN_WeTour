@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useContext } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import SearchAutosuggest from "../components/SearchAutosuggest";
+import { matchesSearch, normalizeSearchTerm } from "../utils/vietnameseUtils";
 
 export default function TourListEnhanced() {
   const [tours, setTours] = useState([]);
@@ -23,6 +24,8 @@ export default function TourListEnhanced() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState("");
   const [selectedRating, setSelectedRating] = useState("");
+  const [selectedTypes, setSelectedTypes] = useState([]);
+  const [selectedDepartureDate, setSelectedDepartureDate] = useState("");
   const [availableDestinations, setAvailableDestinations] = useState([]);
   const [stats, setStats] = useState({ total: 0, minPrice: 0, maxPrice: 0 });
   const { user } = useContext(AuthContext);
@@ -136,15 +139,19 @@ export default function TourListEnhanced() {
   useEffect(() => {
     let filtered = [...tours];
 
-    // Filter by search term - chỉ tìm trong tên tour và điểm đến, không tìm trong description
+    // Filter by search term - hỗ trợ tìm kiếm không dấu
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase().trim();
       filtered = filtered.filter((tour) => {
-        const tourNameLower = tour.name.toLowerCase();
-        const tourDestLower = tour.destination?.toLowerCase() || "";
+        // Tìm kiếm có dấu (case-insensitive)
+        const nameMatch = tour.name.toLowerCase().includes(searchLower);
+        const destMatch = tour.destination?.toLowerCase().includes(searchLower) || false;
         
-        // Chỉ tìm trong tên tour và điểm đến, không tìm trong description
-        return tourNameLower.includes(searchLower) || tourDestLower.includes(searchLower);
+        // Tìm kiếm không dấu
+        const nameMatchNoAccent = matchesSearch(tour.name, searchTerm);
+        const destMatchNoAccent = matchesSearch(tour.destination || "", searchTerm);
+        
+        return nameMatch || destMatch || nameMatchNoAccent || destMatchNoAccent;
       });
     }
 
@@ -163,15 +170,18 @@ export default function TourListEnhanced() {
 
     // Filter by duration
     if (selectedDuration) {
-      const [min, max] = selectedDuration.split('-').map(Number);
-      filtered = filtered.filter((tour) => {
-        const duration = parseInt(tour.duration);
-        if (max) {
+      if (selectedDuration === "7+") {
+        filtered = filtered.filter((tour) => {
+          const duration = parseInt(tour.duration) || 0;
+          return duration >= 7;
+        });
+      } else {
+        const [min, max] = selectedDuration.split('-').map(Number);
+        filtered = filtered.filter((tour) => {
+          const duration = parseInt(tour.duration) || 0;
           return duration >= min && duration <= max;
-        } else {
-          return duration >= min;
-        }
-      });
+        });
+      }
     }
 
     // Filter by rating
@@ -182,18 +192,122 @@ export default function TourListEnhanced() {
       });
     }
 
-    // Sort tours - ưu tiên tour có tên khớp khi search
+    // Filter by departure date
+    if (selectedDepartureDate) {
+      const selectedDate = new Date(selectedDepartureDate);
+      selectedDate.setHours(0, 0, 0, 0);
+      
+      filtered = filtered.filter((tour) => {
+        // Check departure_date
+        if (tour.departure_date) {
+          const departureDate = new Date(tour.departure_date);
+          departureDate.setHours(0, 0, 0, 0);
+          if (departureDate.getTime() === selectedDate.getTime()) {
+            return true;
+          }
+        }
+        
+        // Check available_dates
+        if (tour.available_dates) {
+          try {
+            const availableDates = typeof tour.available_dates === 'string' 
+              ? JSON.parse(tour.available_dates) 
+              : tour.available_dates;
+            
+            if (Array.isArray(availableDates)) {
+              return availableDates.some(dateStr => {
+                const date = new Date(dateStr);
+                date.setHours(0, 0, 0, 0);
+                return date.getTime() === selectedDate.getTime();
+              });
+            }
+          } catch (e) {
+            // Ignore parsing errors
+          }
+        }
+        
+        return false;
+      });
+    }
+
+    // Filter by tour type/category
+    if (selectedTypes.length > 0) {
+      filtered = filtered.filter((tour) => {
+        const tourCategory = (tour.category || "").trim();
+        const tourCategories = tour.categories ? (typeof tour.categories === 'string' ? tour.categories.split(',').map(c => c.trim()) : tour.categories) : [];
+        const relatedCategories = tour.Categories ? tour.Categories.map(c => c.name) : [];
+        
+        // Check if tour category matches any selected type
+        return selectedTypes.some(selectedType => {
+          const selectedLower = selectedType.toLowerCase().trim();
+          
+          // Check tour.category field
+          if (tourCategory.toLowerCase() === selectedLower) return true;
+          
+          // Check tour.categories (comma-separated string)
+          if (tourCategories.length > 0) {
+            if (tourCategories.some(cat => cat.toLowerCase().trim() === selectedLower)) return true;
+          }
+          
+          // Check related Categories from database
+          if (relatedCategories.length > 0) {
+            if (relatedCategories.some(cat => cat.toLowerCase().trim() === selectedLower)) return true;
+          }
+          
+          // Partial match for flexibility (case-insensitive)
+          const categoryLower = tourCategory.toLowerCase();
+          if (selectedType === "Nghỉ dưỡng" && (categoryLower.includes("nghỉ") || categoryLower.includes("dưỡng"))) return true;
+          if (selectedType === "Khám phá" && (categoryLower.includes("khám") || categoryLower.includes("phá"))) return true;
+          if (selectedType === "Mạo hiểm" && (categoryLower.includes("mạo") || categoryLower.includes("hiểm"))) return true;
+          if (selectedType === "Văn hóa" && (categoryLower.includes("văn") || categoryLower.includes("hóa") || categoryLower.includes("van") || categoryLower.includes("hoa"))) return true;
+          if (selectedType === "Thư giãn" && (categoryLower.includes("thư") || categoryLower.includes("giãn") || categoryLower.includes("thu") || categoryLower.includes("gian"))) return true;
+          
+          // Check in related categories with partial match
+          if (relatedCategories.length > 0) {
+            for (const cat of relatedCategories) {
+              const catLower = cat.toLowerCase();
+              if (selectedType === "Nghỉ dưỡng" && (catLower.includes("nghỉ") || catLower.includes("dưỡng"))) return true;
+              if (selectedType === "Khám phá" && (catLower.includes("khám") || catLower.includes("phá"))) return true;
+              if (selectedType === "Mạo hiểm" && (catLower.includes("mạo") || catLower.includes("hiểm"))) return true;
+            }
+          }
+          
+          return false;
+        });
+      });
+    }
+
+    // Sort tours
     filtered.sort((a, b) => {
-      // Nếu có searchTerm, ưu tiên tour có tên khớp trước
-      if (searchTerm) {
+      // Sort by popularity (default) - by rating and review count
+      if (sortBy === "popularity") {
+        const aRating = a.averageRating || 0;
+        const bRating = b.averageRating || 0;
+        const aReviews = a.reviewCount || 0;
+        const bReviews = b.reviewCount || 0;
+        
+        // Sort by rating first, then by review count
+        if (bRating !== aRating) {
+          return bRating - aRating;
+        }
+        return bReviews - aReviews;
+      }
+      
+      // Nếu có searchTerm, ưu tiên tour có tên khớp trước (cả có dấu và không dấu)
+      if (searchTerm && sortBy !== "popularity") {
         const searchLower = searchTerm.toLowerCase().trim();
-        const aNameMatch = a.name.toLowerCase().includes(searchLower);
-        const bNameMatch = b.name.toLowerCase().includes(searchLower);
+        const aNameMatch = a.name.toLowerCase().includes(searchLower) || matchesSearch(a.name, searchTerm);
+        const bNameMatch = b.name.toLowerCase().includes(searchLower) || matchesSearch(b.name, searchTerm);
         if (aNameMatch && !bNameMatch) return -1;
         if (!aNameMatch && bNameMatch) return 1;
       }
       
-      // Sau đó sort theo sortBy/sortOrder
+      // Sau đó sort theo sortBy/sortOrder (nếu không phải popularity)
+      if (sortBy === "popularity") {
+        // Already sorted above
+        return 0;
+      }
+      
       let aValue, bValue;
       
       switch (sortBy) {
@@ -213,10 +327,6 @@ export default function TourListEnhanced() {
           aValue = parseInt(a.duration) || 0;
           bValue = parseInt(b.duration) || 0;
           break;
-        case "popularity":
-          aValue = a.views || 0;
-          bValue = b.views || 0;
-          break;
         default:
           aValue = a.name.toLowerCase();
           bValue = b.name.toLowerCase();
@@ -231,7 +341,16 @@ export default function TourListEnhanced() {
 
     setFilteredTours(filtered);
     setCurrentPage(1);
-  }, [searchTerm, selectedDestination, priceRange, selectedDuration, selectedRating, tours, sortBy, sortOrder]);
+  }, [searchTerm, selectedDestination, priceRange, selectedDuration, selectedRating, selectedTypes, selectedDepartureDate, tours, sortBy, sortOrder]);
+
+  const [showNotification, setShowNotification] = useState({ type: "", message: "" });
+
+  const showToast = (type, message) => {
+    setShowNotification({ type, message });
+    setTimeout(() => {
+      setShowNotification({ type: "", message: "" });
+    }, 3000);
+  };
 
   const toggleWishlist = (tour) => {
     if (!user) {
@@ -244,10 +363,12 @@ export default function TourListEnhanced() {
       const newWishlist = wishlist.filter((item) => item.id !== tour.id);
       setWishlist(newWishlist);
       localStorage.setItem(`wishlist_${user.id}`, JSON.stringify(newWishlist));
+      showToast("info", `Đã xóa "${tour.name}" khỏi wishlist`);
     } else {
       const newWishlist = [...wishlist, tour];
       setWishlist(newWishlist);
       localStorage.setItem(`wishlist_${user.id}`, JSON.stringify(newWishlist));
+      showToast("success", `Đã thêm "${tour.name}" vào wishlist`);
     }
   };
 
@@ -255,8 +376,10 @@ export default function TourListEnhanced() {
     const isInComparison = comparisonTours.some((item) => item.id === tour.id);
     if (isInComparison) {
       setComparisonTours(comparisonTours.filter((item) => item.id !== tour.id));
+      showToast("info", `Đã xóa "${tour.name}" khỏi so sánh`);
     } else if (comparisonTours.length < 3) {
       setComparisonTours([...comparisonTours, tour]);
+      showToast("success", `Đã thêm "${tour.name}" vào so sánh`);
     } else {
       alert("Bạn chỉ có thể so sánh tối đa 3 tour");
     }
@@ -268,8 +391,20 @@ export default function TourListEnhanced() {
     setPriceRange({ min: "", max: "" });
     setSelectedDuration("");
     setSelectedRating("");
+    setSelectedTypes([]);
+    setSelectedDepartureDate("");
     setSortBy("name");
     setSortOrder("asc");
+  };
+
+  const toggleTypeFilter = (type) => {
+    setSelectedTypes(prev => {
+      if (prev.includes(type)) {
+        return prev.filter(t => t !== type);
+      } else {
+        return [...prev, type];
+      }
+    });
   };
 
   const updateURL = () => {
@@ -314,25 +449,66 @@ export default function TourListEnhanced() {
     return stars;
   };
 
-  const TourCard = ({ tour }) => (
+  const TourCard = ({ tour, viewMode = "grid" }) => {
+    const navigate = useNavigate();
+    
+    // Use useEffect to hide any elements containing only "0"
+    React.useEffect(() => {
+      const cardElement = document.querySelector(`[data-tour-card-id="${tour.id}"]`);
+      if (cardElement) {
+        // Find all text nodes and hide those containing only "0"
+        const walker = document.createTreeWalker(
+          cardElement,
+          NodeFilter.SHOW_TEXT,
+          null
+        );
+        let node;
+        while (node = walker.nextNode()) {
+          if (node.textContent.trim() === "0" && node.textContent.trim().length === 1) {
+            const parent = node.parentElement;
+            if (parent && parent.children.length === 0) {
+              parent.style.display = "none";
+            } else {
+              node.textContent = "";
+            }
+          }
+        }
+        
+        // Also hide any elements with only "0" as text content
+        const allElements = cardElement.querySelectorAll("*");
+        allElements.forEach(el => {
+          const text = el.textContent?.trim();
+          if (text === "0" && el.children.length === 0 && !el.querySelector("*")) {
+            el.style.display = "none";
+          }
+        });
+      }
+    }, [tour.id]);
+
+    return (
     <div
+      data-tour-card-id={tour.id}
+      onClick={() => navigate(`/tour/${tour.id}`)}
       style={{
         border: "1px solid #e5e7eb",
-        borderRadius: "16px",
+        borderRadius: "12px",
         overflow: "hidden",
         background: "#fff",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         transition: "all 0.3s ease",
         cursor: "pointer",
         position: "relative",
+        display: "flex",
+        flexDirection: viewMode === "list" ? "row" : "column",
+        width: viewMode === "list" ? "100%" : "auto",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-4px)";
-        e.currentTarget.style.boxShadow = "0 12px 24px rgba(0,0,0,0.15)";
+        e.currentTarget.style.boxShadow = "0 8px 16px rgba(0,0,0,0.15)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
       }}
     >
       {/* Wishlist & Comparison Buttons */}
@@ -343,24 +519,31 @@ export default function TourListEnhanced() {
             toggleWishlist(tour);
           }}
           style={{
-            background: wishlist.some(item => item.id === tour.id) ? "#ef4444" : "rgba(255,255,255,0.9)",
-            color: wishlist.some(item => item.id === tour.id) ? "#fff" : "#374151",
-            border: "none",
+            width: "44px",
+            height: "44px",
             borderRadius: "50%",
-            width: "36px",
-            height: "36px",
+            border: `1px solid ${wishlist.some(item => item.id === tour.id) ? "rgba(239, 68, 68, 0.5)" : "rgba(255, 255, 255, 0.3)"}`,
+            background: wishlist.some(item => item.id === tour.id) ? "rgba(239, 68, 68, 0.8)" : "rgba(255, 255, 255, 0.2)",
+            backdropFilter: "blur(10px)",
+            color: "#fff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            fontSize: "16px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
             transition: "all 0.2s",
+            fontSize: "20px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
           }}
           onMouseEnter={(e) => {
-            e.target.style.transform = "scale(1.1)";
+            e.target.style.background = "rgba(239, 68, 68, 0.9)";
+            e.target.style.borderColor = "rgba(239, 68, 68, 0.7)";
+            e.target.style.transform = "scale(1.05)";
           }}
           onMouseLeave={(e) => {
+            if (!wishlist.some(item => item.id === tour.id)) {
+              e.target.style.background = "rgba(255, 255, 255, 0.2)";
+              e.target.style.borderColor = "rgba(255, 255, 255, 0.3)";
+            }
             e.target.style.transform = "scale(1)";
           }}
         >
@@ -372,24 +555,31 @@ export default function TourListEnhanced() {
             toggleComparison(tour);
           }}
           style={{
-            background: comparisonTours.some(item => item.id === tour.id) ? "#0E7490" : "rgba(255,255,255,0.9)",
-            color: comparisonTours.some(item => item.id === tour.id) ? "#fff" : "#374151",
-            border: "none",
+            width: "44px",
+            height: "44px",
             borderRadius: "50%",
-            width: "36px",
-            height: "36px",
+            border: `1px solid ${comparisonTours.some(item => item.id === tour.id) ? "rgba(14, 116, 144, 0.5)" : "rgba(255, 255, 255, 0.3)"}`,
+            background: comparisonTours.some(item => item.id === tour.id) ? "rgba(14, 116, 144, 0.8)" : "rgba(255, 255, 255, 0.2)",
+            backdropFilter: "blur(10px)",
+            color: "#fff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            fontSize: "16px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
             transition: "all 0.2s",
+            fontSize: "20px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
           }}
           onMouseEnter={(e) => {
-            e.target.style.transform = "scale(1.1)";
+            e.target.style.background = "rgba(14, 116, 144, 0.9)";
+            e.target.style.borderColor = "rgba(14, 116, 144, 0.7)";
+            e.target.style.transform = "scale(1.05)";
           }}
           onMouseLeave={(e) => {
+            if (!comparisonTours.some(item => item.id === tour.id)) {
+              e.target.style.background = "rgba(255, 255, 255, 0.2)";
+              e.target.style.borderColor = "rgba(255, 255, 255, 0.3)";
+            }
             e.target.style.transform = "scale(1)";
           }}
         >
@@ -397,14 +587,14 @@ export default function TourListEnhanced() {
         </button>
       </div>
 
-      <Link to={`/tour/${tour.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-        <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", flex: 1, flexDirection: viewMode === "list" ? "row" : "column" }}>
+        <div style={{ position: "relative", width: viewMode === "list" ? "300px" : "100%", flexShrink: 0 }}>
           <img
             src={tour.image || "https://via.placeholder.com/400x250?text=Tour+Image"}
             alt={tour.name}
             style={{
               width: "100%",
-              height: "220px",
+              height: viewMode === "list" ? "200px" : "200px",
               objectFit: "cover",
               display: "block",
             }}
@@ -436,23 +626,25 @@ export default function TourListEnhanced() {
             </div>
           )}
 
-          {/* Recent bookings in last 24h */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: "12px",
-              right: "12px",
-              background: "rgba(255,255,255,0.95)",
-              color: "#111827",
-              padding: "4px 8px",
-              borderRadius: "6px",
-              fontSize: "12px",
-              fontWeight: 600,
-              boxShadow: "0 1px 6px rgba(0,0,0,0.15)",
-            }}
-          >
-            {Number(recentCounts[tour.id] || 0)} khách đặt/24h
-          </div>
+          {/* Recent bookings in last 24h - Only show if > 0 */}
+          {Number(recentCounts[tour.id] || 0) > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: "12px",
+                right: "12px",
+                background: "rgba(255,255,255,0.95)",
+                color: "#111827",
+                padding: "4px 8px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: 600,
+                boxShadow: "0 1px 6px rgba(0,0,0,0.15)",
+              }}
+            >
+              {Number(recentCounts[tour.id])} khách đặt/24h
+            </div>
+          )}
 
           {/* Promo Badge */}
           {hasTourPromo && (
@@ -512,107 +704,107 @@ export default function TourListEnhanced() {
           )}
         </div>
 
-        <div style={{ padding: "20px" }}>
-          <h3
-            style={{
-              margin: "0 0 8px",
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "#1e293b",
-              lineHeight: "1.4",
-            }}
-          >
-            {tour.name}
-          </h3>
-          
-          <p
-            style={{
-              margin: "0 0 8px",
-              color: "#64748b",
-              fontSize: "14px",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            📍 {tour.destination}
-          </p>
-          
-          <p
-            style={{
-              margin: "0 0 8px",
-              color: "#64748b",
-              fontSize: "14px",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            ⏱️ {tour.duration}
-          </p>
-
-          {tour.description && (
+        <div style={{ padding: "20px", display: "flex", flexDirection: "column", flex: 1, gap: "12px" }}>
+          <div>
+            <h3
+              style={{
+                margin: "0 0 8px",
+                fontSize: "18px",
+                fontWeight: 600,
+                color: "#1e293b",
+                lineHeight: "1.4",
+              }}
+            >
+              {tour.name}
+            </h3>
+            
+            {/* Rating */}
+            {tour.averageRating && (tour.reviewCount || 0) > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
+                <span style={{ color: "#fbbf24", fontSize: "16px" }}>⭐</span>
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "#1e293b" }}>
+                  {tour.averageRating.toFixed(1)}
+                </span>
+                <span style={{ fontSize: "14px", color: "#64748b" }}>
+                  ({tour.reviewCount} đánh giá)
+                </span>
+              </div>
+            )}
+            
+            {/* Description */}
             <p
               style={{
-                margin: "0 0 12px",
+                margin: "0 0 16px",
                 color: "#64748b",
                 fontSize: "14px",
                 lineHeight: "1.5",
                 display: "-webkit-box",
-                WebkitLineClamp: 2,
+                WebkitLineClamp: viewMode === "list" ? 3 : 2,
                 WebkitBoxOrient: "vertical",
                 overflow: "hidden",
               }}
             >
-              {tour.description}
+              {(() => {
+                let desc = tour.description || `${tour.duration}, từ ${tour.destination || "Hà Nội"}`;
+                // Remove "Ngày 0" and standalone "0"s more aggressively
+                desc = desc
+                  .replace(/Ngày\s*0[:\s]+/gi, '') // Remove "Ngày 0:"
+                  .replace(/^\s*0\s*$/gm, '') // Remove lines with just "0"
+                  .replace(/^\s*0\s+/gm, '') // Remove "0" at start of lines
+                  .replace(/\s+0\s*$/gm, '') // Remove "0" at end of lines
+                  .replace(/\s+0\s+/g, ' ') // Remove standalone "0" between words
+                  .replace(/^0\s+/g, '') // Remove "0" at start of string
+                  .replace(/\s+0$/g, '') // Remove "0" at end of string
+                  .replace(/\b0\b/g, '') // Remove any standalone "0" word
+                  .replace(/\s{2,}/g, ' ') // Replace multiple spaces with single space
+                  .trim();
+                return desc;
+              })()}
             </p>
-          )}
-
-          {/* Rating Stars */}
-          {tour.averageRating && (
-            <div style={{ marginBottom: "12px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                {renderStars(tour.averageRating)}
-                <span style={{ fontSize: "12px", color: "#64748b", marginLeft: "4px" }}>
-                  ({tour.reviewCount || 0} đánh giá)
-                </span>
-              </div>
-            </div>
-          )}
+          </div>
 
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginTop: "12px",
+              marginTop: "auto",
+              paddingTop: "12px",
+              borderTop: "1px solid #e5e7eb"
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span
-                style={{
-                  padding: "6px 12px",
-                  background: "#f0f9ff",
-                  color: "#0E7490",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                  fontWeight: 500,
-                }}
-              >
-                Xem chi tiết →
-              </span>
+            <div style={{ fontSize: "16px", fontWeight: 600, color: "#1e293b" }}>
+              Giá từ {new Intl.NumberFormat("vi-VN").format(tour.price)}₫
             </div>
-            
-            {tour.views && (
-              <span style={{ fontSize: "12px", color: "#9ca3af" }}>
-                👁️ {tour.views} lượt xem
-              </span>
-            )}
+            <Link
+              to={`/tour/${tour.id}`}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "#0ea5e9",
+                color: "#fff",
+                padding: "8px 16px",
+                borderRadius: "6px",
+                fontSize: "14px",
+                fontWeight: 500,
+                textDecoration: "none",
+                transition: "background 0.2s",
+                cursor: "pointer"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = "#0284c7";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = "#0ea5e9";
+              }}
+            >
+              Xem chi tiết
+            </Link>
           </div>
         </div>
-      </Link>
+      </div>
     </div>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -625,321 +817,403 @@ export default function TourListEnhanced() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
-      {/* Header */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)",
-          color: "#fff",
-          padding: "40px 20px",
-          textAlign: "center",
-        }}
-      >
-        <h1 style={{ fontSize: "36px", margin: "0 0 12px", fontWeight: 700 }}>
-          🎯 Khám phá các tour du lịch
-        </h1>
-        <p style={{ fontSize: "18px", margin: "0 0 24px", opacity: 0.95 }}>
-          Tìm kiếm và so sánh {stats.total} tour du lịch tuyệt vời
-        </p>
-        
-        {/* Quick Stats */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "32px", flexWrap: "wrap" }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "24px", fontWeight: 700, marginBottom: "4px" }}>{stats.total}</div>
-            <div style={{ fontSize: "14px", opacity: 0.9 }}>Tour</div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "24px", fontWeight: 700, marginBottom: "4px" }}>
-              {Number(stats.minPrice).toLocaleString()}
-            </div>
-            <div style={{ fontSize: "14px", opacity: 0.9 }}>Giá thấp nhất</div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "24px", fontWeight: 700, marginBottom: "4px" }}>
-              {Number(stats.maxPrice).toLocaleString()}
-            </div>
-            <div style={{ fontSize: "14px", opacity: 0.9 }}>Giá cao nhất</div>
+    <div style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+      {/* Global CSS to hide standalone "0" elements */}
+      <style>{`
+        [data-tour-card-id] * {
+          position: relative;
+        }
+        [data-tour-card-id] *:not(script):not(style):not(img):not(svg):not(input):not(button):not(select) {
+          font-size: inherit;
+        }
+        [data-tour-card-id] *:not(script):not(style):not(img):not(svg):not(input):not(button):not(select):empty {
+          display: none !important;
+        }
+      `}</style>
+      {/* Toast Notification */}
+      {showNotification.message && (
+        <div
+          style={{
+            position: "fixed",
+            top: "20px",
+            right: "20px",
+            background: showNotification.type === "success" ? "#10b981" : "#3b82f6",
+            color: "#fff",
+            padding: "16px 24px",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            zIndex: 10000,
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            fontSize: "15px",
+            fontWeight: 500,
+            animation: "slideIn 0.3s ease-out",
+            maxWidth: "400px"
+          }}
+        >
+          <span style={{ fontSize: "20px" }}>
+            {showNotification.type === "success" ? "✅" : "ℹ️"}
+          </span>
+          <span>{showNotification.message}</span>
+        </div>
+      )}
+
+      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "40px 20px" }}>
+        {/* Header with Background Image */}
+        <div 
+          style={{ 
+            position: "relative",
+            textAlign: "center", 
+            marginBottom: "40px",
+            borderRadius: "16px",
+            overflow: "hidden",
+            minHeight: "200px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundImage: "url('https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat"
+          }}
+        >
+          {/* Overlay for better text readability */}
+          <div style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "linear-gradient(135deg, rgba(14, 116, 144, 0.85) 0%, rgba(15, 118, 110, 0.75) 100%)",
+            zIndex: 1
+          }} />
+          
+          {/* Content */}
+          <div style={{ position: "relative", zIndex: 2, padding: "60px 20px" }}>
+            <h1 style={{ 
+              fontSize: "42px", 
+              margin: "0 0 16px", 
+              fontWeight: 700, 
+              color: "#fff",
+              textShadow: "0 2px 10px rgba(0,0,0,0.3)",
+              lineHeight: "1.2"
+            }}>
+              Khám phá Tour Du Lịch Ước Mơ Của Bạn
+            </h1>
+            <p style={{
+              fontSize: "18px",
+              color: "rgba(255,255,255,0.95)",
+              margin: 0,
+              textShadow: "0 1px 5px rgba(0,0,0,0.2)"
+            }}>
+              Tìm kiếm và đặt chỗ cho chuyến đi trong mơ của bạn
+            </p>
           </div>
         </div>
-      </div>
 
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: "20px" }}>
+        {/* Results Header */}
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center", 
+          marginBottom: "24px",
+          gap: "16px",
+          flexWrap: "wrap"
+        }}>
+          <div style={{ fontSize: "16px", color: "#64748b" }}>
+            Tìm thấy {filteredTours.length} tour phù hợp
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {/* View Mode Toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "#f1f5f9", borderRadius: "8px", padding: "4px" }}>
+              <button
+                onClick={() => setViewMode("grid")}
+                style={{
+                  padding: "6px 12px",
+                  border: "none",
+                  borderRadius: "6px",
+                  background: viewMode === "grid" ? "#0E7490" : "transparent",
+                  color: viewMode === "grid" ? "#fff" : "#64748b",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}
+              >
+                <span>⊞</span>
+                <span>Lưới</span>
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                style={{
+                  padding: "6px 12px",
+                  border: "none",
+                  borderRadius: "6px",
+                  background: viewMode === "list" ? "#0E7490" : "transparent",
+                  color: viewMode === "list" ? "#fff" : "#64748b",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}
+              >
+                <span>☰</span>
+                <span>Danh sách</span>
+              </button>
+            </div>
+            <span style={{ fontSize: "14px", color: "#64748b" }}>Sắp xếp theo:</span>
+            <select
+              value={sortBy === "popularity" ? "popularity" : `${sortBy}-${sortOrder}`}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "popularity") {
+                  setSortBy("popularity");
+                } else {
+                  const [newSortBy, newSortOrder] = value.split('-');
+                  setSortBy(newSortBy);
+                  setSortOrder(newSortOrder || "asc");
+                }
+              }}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
+                background: "#fff",
+                outline: "none",
+                cursor: "pointer"
+              }}
+            >
+              <option value="popularity">Phổ biến nhất</option>
+              <option value="name-asc">Tên A-Z</option>
+              <option value="name-desc">Tên Z-A</option>
+              <option value="price-asc">Giá thấp đến cao</option>
+              <option value="price-desc">Giá cao đến thấp</option>
+              <option value="rating-desc">Đánh giá cao nhất</option>
+              <option value="duration-asc">Thời gian ngắn nhất</option>
+            </select>
+          </div>
+        </div>
         <div style={{ display: "flex", gap: "24px", marginBottom: "32px" }}>
           {/* Filters Sidebar */}
           <div
             style={{
-              width: "300px",
+              width: "280px",
+              minWidth: "280px",
+              maxWidth: "280px",
               background: "#fff",
-              borderRadius: "16px",
+              borderRadius: "12px",
               padding: "24px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
               height: "fit-content",
               position: "sticky",
               top: "20px",
+              boxSizing: "border-box",
+              overflow: "hidden"
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 600, color: "#1e293b" }}>
-                🔍 Bộ lọc
-              </h3>
-              <button
-                onClick={clearFilters}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#0E7490",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                }}
-              >
-                Xóa tất cả
-              </button>
-            </div>
+            <h4 style={{ margin: "0 0 20px", fontSize: "16px", fontWeight: 600, color: "#1e293b" }}>
+              🔍 Bộ lọc tìm kiếm
+            </h4>
 
-            {/* Search */}
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151" }}>
-                Tìm kiếm
+            {/* Search Input - Điểm đến hoặc tên tour */}
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151", fontSize: "14px" }}>
+                Điểm đến hoặc tên tour
               </label>
-              <div>
-                <div style={{ marginBottom: 8 }}>
-                  <SearchAutosuggest
-                    value={searchTerm}
-                    onChange={setSearchTerm}
-                    onSelect={(item)=>{
-                      setSearchTerm(item.name);
-                      setSelectedDestination("");
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Destination Filter */}
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151" }}>
-                Điểm đến
-              </label>
-              <select
-                value={selectedDestination}
-                onChange={(e) => setSelectedDestination(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  background: "#fff",
-                  outline: "none",
-                }}
-              >
-                <option value="">Tất cả điểm đến</option>
-                {availableDestinations.map((dest) => (
-                  <option key={dest} value={dest}>{dest}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Price Range */}
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151" }}>
-                Khoảng giá (₫)
-              </label>
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ position: "relative" }}>
                 <input
-                  type="number"
-                  placeholder="Từ"
-                  value={priceRange.min}
-                  onChange={(e) => setPriceRange(prev => ({ ...prev, min: e.target.value }))}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Nhập điểm đến"
                   style={{
-                    flex: 1,
-                    padding: "12px",
+                    width: "100%",
+                    padding: "12px 40px 12px 12px",
                     border: "1px solid #d1d5db",
                     borderRadius: "8px",
                     fontSize: "14px",
+                    background: "#fff",
                     outline: "none",
+                    boxSizing: "border-box"
+                  }}
+                />
+                <span style={{
+                  position: "absolute",
+                  right: "12px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: "18px",
+                  color: "#64748b",
+                  cursor: "pointer"
+                }}>
+                  🔍
+                </span>
+              </div>
+            </div>
+
+            {/* Price Range */}
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151", fontSize: "14px" }}>
+                Ngân sách
+              </label>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                <input
+                  type="number"
+                  placeholder="Từ"
+                  value={priceRange.min || ""}
+                  onChange={(e) => setPriceRange(prev => ({ ...prev, min: e.target.value }))}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "6px",
+                    fontSize: "14px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    minWidth: 0, // Allow flex item to shrink
+                    width: "100%"
                   }}
                 />
                 <input
                   type="number"
                   placeholder="Đến"
-                  value={priceRange.max}
+                  value={priceRange.max || ""}
                   onChange={(e) => setPriceRange(prev => ({ ...prev, max: e.target.value }))}
                   style={{
                     flex: 1,
-                    padding: "12px",
+                    padding: "10px",
                     border: "1px solid #d1d5db",
-                    borderRadius: "8px",
+                    borderRadius: "6px",
                     fontSize: "14px",
                     outline: "none",
+                    boxSizing: "border-box",
+                    minWidth: 0, // Allow flex item to shrink
+                    width: "100%"
                   }}
                 />
+              </div>
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                alignItems: "center",
+                fontSize: "11px", 
+                color: "#64748b",
+                gap: "4px",
+                width: "100%",
+                boxSizing: "border-box"
+              }}>
+                <span style={{ 
+                  fontSize: "11px", 
+                  color: "#64748b",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: "50%",
+                  flex: "1 1 0"
+                }}>
+                  {stats.minPrice ? Number(stats.minPrice).toLocaleString() : "1.000.000"}₫
+                </span>
+                <span style={{ 
+                  fontSize: "11px", 
+                  color: "#64748b",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: "50%",
+                  flex: "1 1 0",
+                  textAlign: "right"
+                }}>
+                  {stats.maxPrice ? Number(stats.maxPrice).toLocaleString() : "10.000.000"}₫
+                </span>
               </div>
             </div>
 
             {/* Duration Filter */}
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151" }}>
-                Thời gian
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", marginBottom: "12px", fontWeight: 500, color: "#374151", fontSize: "14px" }}>
+                Thời lượng tour
               </label>
-              <select
-                value={selectedDuration}
-                onChange={(e) => setSelectedDuration(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  background: "#fff",
-                  outline: "none",
-                }}
-              >
-                <option value="">Tất cả thời gian</option>
-                <option value="1-2">1-2 ngày</option>
-                <option value="3-5">3-5 ngày</option>
-                <option value="6-10">6-10 ngày</option>
-                <option value="11">11+ ngày</option>
-              </select>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", cursor: "pointer" }}>
+                  <input 
+                    type="checkbox" 
+                    style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#0E7490" }}
+                    checked={selectedDuration === "1-3"}
+                    onChange={() => setSelectedDuration(selectedDuration === "1-3" ? "" : "1-3")}
+                  />
+                  <span style={{ color: "#374151" }}>1-3 ngày</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", cursor: "pointer" }}>
+                  <input 
+                    type="checkbox" 
+                    style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#0E7490" }}
+                    checked={selectedDuration === "4-6"}
+                    onChange={() => setSelectedDuration(selectedDuration === "4-6" ? "" : "4-6")}
+                  />
+                  <span style={{ color: "#374151" }}>4-6 ngày</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px", cursor: "pointer" }}>
+                  <input 
+                    type="checkbox" 
+                    style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#0E7490" }}
+                    checked={selectedDuration === "7+"}
+                    onChange={() => setSelectedDuration(selectedDuration === "7+" ? "" : "7+")}
+                  />
+                  <span style={{ color: "#374151" }}>7+ ngày</span>
+                </label>
+              </div>
             </div>
 
-            {/* Rating Filter */}
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151" }}>
-                Đánh giá tối thiểu
+            {/* Departure Date Filter */}
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151", fontSize: "14px" }}>
+                Ngày khởi hành
               </label>
-              <select
-                value={selectedRating}
-                onChange={(e) => setSelectedRating(e.target.value)}
+              <input
+                type="date"
+                value={selectedDepartureDate}
+                onChange={(e) => setSelectedDepartureDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
                 style={{
                   width: "100%",
-                  padding: "12px",
+                  padding: "10px",
                   border: "1px solid #d1d5db",
-                  borderRadius: "8px",
+                  borderRadius: "6px",
                   fontSize: "14px",
                   background: "#fff",
                   outline: "none",
+                  boxSizing: "border-box"
                 }}
-              >
-                <option value="">Tất cả đánh giá</option>
-                <option value="4">4+ sao</option>
-                <option value="3">3+ sao</option>
-                <option value="2">2+ sao</option>
-              </select>
+              />
             </div>
 
             {/* Active Filters Count */}
-            {filteredTours.length !== tours.length && (
-              <div
-                style={{
-                  background: "#f0f9ff",
-                  border: "1px solid #0ea5e9",
-                  borderRadius: "8px",
-                  padding: "12px",
-                  textAlign: "center",
-                  color: "#0E7490",
-                  fontSize: "14px",
-                }}
-              >
-                Hiển thị {filteredTours.length} / {tours.length} tour
-              </div>
-            )}
+            <div
+              style={{
+                background: "#e0f2fe",
+                borderRadius: "8px",
+                padding: "12px",
+                textAlign: "center",
+                color: "#0E7490",
+                fontSize: "14px",
+                fontWeight: 500,
+              }}
+            >
+              Hiển thị {filteredTours.length} / {tours.length} tour
+            </div>
           </div>
 
           {/* Main Content */}
           <div style={{ flex: 1 }}>
-            {/* Toolbar */}
-            <div
-              style={{
-                background: "#fff",
-                borderRadius: "12px",
-                padding: "20px",
-                marginBottom: "24px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: "16px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-                <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 600, color: "#1e293b" }}>
-                  {filteredTours.length} tour được tìm thấy
-                </h2>
-                
-                {/* Sort Options */}
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <label style={{ fontSize: "14px", color: "#64748b" }}>Sắp xếp:</label>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    style={{
-                      padding: "8px 12px",
-                      border: "1px solid #d1d5db",
-                      borderRadius: "6px",
-                      fontSize: "14px",
-                      background: "#fff",
-                      outline: "none",
-                    }}
-                  >
-                    <option value="name">Tên A-Z</option>
-                    <option value="price">Giá</option>
-                    <option value="rating">Đánh giá</option>
-                    <option value="duration">Thời gian</option>
-                    <option value="popularity">Phổ biến</option>
-                  </select>
-                  <button
-                    onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                    style={{
-                      background: "none",
-                      border: "1px solid #d1d5db",
-                      borderRadius: "6px",
-                      padding: "8px",
-                      cursor: "pointer",
-                      fontSize: "16px",
-                    }}
-                  >
-                    {sortOrder === "asc" ? "↑" : "↓"}
-                  </button>
-                </div>
-              </div>
-
-              {/* View Mode Toggle */}
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  onClick={() => setViewMode("grid")}
-                  style={{
-                    background: viewMode === "grid" ? "#0E7490" : "#f3f4f6",
-                    color: viewMode === "grid" ? "#fff" : "#374151",
-                    border: "none",
-                    borderRadius: "6px",
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                  }}
-                >
-                  ⊞ Lưới
-                </button>
-                <button
-                  onClick={() => setViewMode("list")}
-                  style={{
-                    background: viewMode === "list" ? "#0E7490" : "#f3f4f6",
-                    color: viewMode === "list" ? "#fff" : "#374151",
-                    border: "none",
-                    borderRadius: "6px",
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                  }}
-                >
-                  ☰ Danh sách
-                </button>
-              </div>
-            </div>
-
-            {/* Tours Grid/List */}
+            {/* Tours Grid */}
             {filteredTours.length === 0 ? (
               <div
                 style={{
@@ -974,14 +1248,14 @@ export default function TourListEnhanced() {
             ) : (
               <div
                 style={{
-                  display: viewMode === "grid" ? "grid" : "flex",
-                  gridTemplateColumns: viewMode === "grid" ? "repeat(auto-fill, minmax(320px, 1fr))" : "1fr",
+                  display: viewMode === "list" ? "flex" : "grid",
                   flexDirection: viewMode === "list" ? "column" : "row",
+                  gridTemplateColumns: viewMode === "grid" ? "repeat(2, 1fr)" : "none",
                   gap: "24px",
                 }}
               >
                 {currentTours.map((tour) => (
-                  <TourCard key={tour.id} tour={tour} />
+                  <TourCard key={tour.id} tour={tour} viewMode={viewMode} />
                 ))}
               </div>
             )}

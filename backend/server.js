@@ -19,6 +19,15 @@ import paymentRoutes from "./src/routes/paymentRoutes.js";
 import aiRoutes from "./src/routes/aiRoutes.js";
 import chatRoutes from "./src/routes/chatRoutes.js";
 import adminChatRoutes from "./src/routes/adminChatRoutes.js";
+import hotelRoutes from "./src/routes/hotelRoutes.js";
+import flightRoutes from "./src/routes/flightRoutes.js";
+import customTourRoutes from "./src/routes/customTourRoutes.js";
+import adminHotelRoutes from "./src/routes/adminHotelRoutes.js";
+import adminFlightRoutes from "./src/routes/adminFlightRoutes.js";
+import hotelPaymentRoutes from "./src/routes/hotelPaymentRoutes.js";
+import flightPaymentRoutes from "./src/routes/flightPaymentRoutes.js";
+import customTourPaymentRoutes from "./src/routes/customTourPaymentRoutes.js";
+import hotelReviewRoutes from "./src/routes/hotelReviewRoutes.js";
 import { startNotificationScheduler } from "./src/utils/notificationScheduler.js";
 
 
@@ -47,6 +56,15 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/admin/chat", adminChatRoutes);
+app.use("/api/hotels", hotelRoutes);
+app.use("/api/flights", flightRoutes);
+app.use("/api/custom-tours", customTourRoutes);
+app.use("/api/admin/hotels", adminHotelRoutes);
+app.use("/api/admin/flights", adminFlightRoutes);
+app.use("/api/hotel-payments", hotelPaymentRoutes);
+app.use("/api/flight-payments", flightPaymentRoutes);
+app.use("/api/custom-tour-payments", customTourPaymentRoutes);
+app.use("/api/hotel-reviews", hotelReviewRoutes);
 
 // Healthcheck routes
 app.get("/api/health/db", async (req, res) => {

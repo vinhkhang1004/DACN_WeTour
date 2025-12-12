@@ -15,17 +15,12 @@ export default function AITourRecommendation() {
     duration: "",
     destination: "",
     interests: "",
-    travelStyle: ""
+    travelStyle: "",
+    websiteUrl: ""
   });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!user) {
-      alert("Vui lòng đăng nhập để sử dụng tính năng này");
-      navigate("/login");
-      return;
-    }
 
     // Validate at least one field
     const hasData = Object.values(formData).some(val => val.trim() !== "");
@@ -36,15 +31,37 @@ export default function AITourRecommendation() {
 
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      const response = await api.post("/ai/recommend", formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      setRecommendations(null); // Clear previous results
+      
+      const response = await api.post("/ai/recommend", formData);
 
-      setRecommendations(response.data);
+      if (response.data && response.data.tours && response.data.tours.length > 0) {
+        setRecommendations(response.data);
+      } else {
+        // No tours found but API call succeeded
+        setRecommendations({
+          tours: [],
+          reasoning: response.data?.reasoning || "Không tìm thấy tour phù hợp với tiêu chí của bạn.",
+          suggestions: response.data?.suggestions || "Vui lòng thử điều chỉnh các tiêu chí tìm kiếm.",
+          aiPowered: false
+        });
+      }
     } catch (error) {
       console.error("Error getting recommendations:", error);
-      alert(error.response?.data?.message || "Có lỗi xảy ra. Vui lòng thử lại.");
+      
+      // Better error handling
+      let errorMessage = "Có lỗi xảy ra. Vui lòng thử lại.";
+      
+      if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+        errorMessage = "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng hoặc đảm bảo backend đang chạy.";
+      } else if (error.response?.status === 404) {
+        errorMessage = "API không tìm thấy. Vui lòng kiểm tra cấu hình.";
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      alert(errorMessage);
+      setRecommendations(null);
     } finally {
       setLoading(false);
     }
@@ -57,7 +74,8 @@ export default function AITourRecommendation() {
       duration: "",
       destination: "",
       interests: "",
-      travelStyle: ""
+      travelStyle: "",
+      websiteUrl: ""
     });
     setRecommendations(null);
   };
@@ -184,6 +202,29 @@ export default function AITourRecommendation() {
                 <option value="Cao cấp">Cao cấp</option>
                 <option value="Luxury">Luxury</option>
               </select>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, color: "#1e293b" }}>
+                Website tham khảo (tùy chọn)
+              </label>
+              <input
+                type="url"
+                value={formData.websiteUrl}
+                onChange={(e) => setFormData({ ...formData, websiteUrl: e.target.value })}
+                placeholder="https://example.com - AI sẽ lấy thông tin từ website này"
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  fontSize: 16,
+                  boxSizing: "border-box"
+                }}
+              />
+              <p style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                💡 Nhập URL website để AI phân tích và gợi ý tour dựa trên nội dung website
+              </p>
             </div>
 
             <div style={{ marginBottom: 24 }}>

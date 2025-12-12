@@ -21,6 +21,25 @@ export const verifyToken = (req, res, next) => {
 // ✅ Xác thực người dùng bình thường
 export const authenticateUser = verifyToken;
 
+// ✅ Xác thực tùy chọn (optional) - không bắt buộc token
+export const optionalAuth = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    // Token không hợp lệ nhưng vẫn cho phép tiếp tục (không set req.user)
+    req.user = null;
+    next();
+  }
+};
+
 // ✅ Xác thực riêng cho admin
 export const authenticateAdmin = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];

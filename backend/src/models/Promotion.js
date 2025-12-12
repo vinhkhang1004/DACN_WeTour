@@ -48,6 +48,11 @@ export const Promotion = sequelize.define("Promotion", {
     type: DataTypes.ENUM("domestic", "international", "combo", "early", "special", "flash", "all"),
     defaultValue: "all",
   },
+  service_type: {
+    type: DataTypes.ENUM("all", "tour", "hotel", "flight", "tour_hotel", "tour_flight", "hotel_flight"),
+    defaultValue: "all",
+    comment: "Áp dụng cho: all (tất cả), tour, hotel, flight, tour_hotel (combo), tour_flight (combo), hotel_flight (combo)",
+  },
   image: {
     type: DataTypes.STRING(255),
     allowNull: true,
@@ -66,9 +71,20 @@ export const Promotion = sequelize.define("Promotion", {
     defaultValue: 0,
     comment: "Số lần đã sử dụng",
   },
+  createdAt: {
+    type: DataTypes.DATE,
+    field: "created_at",
+    allowNull: true,
+  },
+  updatedAt: {
+    type: DataTypes.DATE,
+    field: "updated_at",
+    allowNull: true,
+  },
 }, {
   tableName: "promotions",
   timestamps: true,
+  underscored: true,
 });
 
 export const PromotionUsage = sequelize.define("PromotionUsage", {

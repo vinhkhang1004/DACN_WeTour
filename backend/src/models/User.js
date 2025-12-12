@@ -29,6 +29,21 @@ export const User = sequelize.define(
       allowNull: true,
       field: "address",
     },
+    avatar: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "avatar",
+    },
+    dateOfBirth: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      field: "date_of_birth",
+    },
+    gender: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: "gender",
+    },
     role: {
       type: DataTypes.STRING,
       defaultValue: "user",

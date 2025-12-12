@@ -1,13 +1,39 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import NotificationCenter from "./NotificationCenter";
 
 export default function Navbar() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const menuRef = useRef(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [avatarKey, setAvatarKey] = useState(0); // Force re-render avatar
+
+  // Listen for user updates
+  useEffect(() => {
+    const handleUserUpdate = () => {
+      setAvatarKey(prev => prev + 1);
+    };
+    window.addEventListener('userUpdated', handleUserUpdate);
+    return () => window.removeEventListener('userUpdated', handleUserUpdate);
+  }, []);
+  
+  // Also update when user changes
+  useEffect(() => {
+    if (user?.avatar) {
+      setAvatarKey(prev => prev + 1);
+    }
+  }, [user?.avatar]);
+
+  // Check if a route is active
+  const isActive = (path) => {
+    if (path === "/") {
+      return location.pathname === "/";
+    }
+    return location.pathname.startsWith(path);
+  };
 
   const handleLogout = () => {
     logout();
@@ -67,10 +93,17 @@ export default function Navbar() {
       </style>
       <div
         style={{
-          background: "#0E7490",
-          color: "#fff",
+          background: "#fff",
+          color: "#1e293b",
           padding: "12px 0",
-          marginBottom: "16px",
+          marginBottom: "0",
+          borderBottom: "1px solid #e5e7eb",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          backdropFilter: "blur(10px)",
+          background: "rgba(255, 255, 255, 0.95)"
         }}
       >
         <div
@@ -92,48 +125,50 @@ export default function Navbar() {
               display: "flex",
               alignItems: "center",
               textDecoration: "none",
-              transition: "all 0.2s",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             }}
             onMouseEnter={(e) => {
-              e.target.style.opacity = "0.9";
-              e.target.style.transform = "scale(1.05)";
+              e.currentTarget.style.transform = "scale(1.02)";
             }}
             onMouseLeave={(e) => {
-              e.target.style.opacity = "1";
-              e.target.style.transform = "scale(1)";
+              e.currentTarget.style.transform = "scale(1)";
             }}
           >
-            <img
-              src="/images/wetour-logo.png"
-              alt="WeTour Logo"
-              style={{
-                height: "100px",
-                width: "auto",
-                objectFit: "contain",
-                maxWidth: "350px",
-                backgroundColor: "transparent",
-                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.1))",
-              }}
-              onError={(e) => {
-                // Fallback: hiển thị text nếu logo không tìm thấy
-                const img = e.target;
-                const parent = img.parentElement;
-                if (parent) {
-                  img.style.display = "none";
-                  const textFallback = parent.querySelector('.logo-text-fallback');
-                  if (textFallback) {
-                    textFallback.style.display = "block";
-                  }
-                }
-              }}
-            />
+            <div style={{
+              width: "44px",
+              height: "44px",
+              borderRadius: "10px",
+              background: "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: "12px",
+              boxShadow: "0 2px 8px rgba(14, 116, 144, 0.2)"
+            }}>
+              <img
+                src="/images/wetour-logo.png"
+                alt="WeTour"
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  objectFit: "contain",
+                }}
+                onError={(e) => {
+                  e.target.style.display = "none";
+                  e.target.parentElement.innerHTML = "✈️";
+                  e.target.parentElement.style.fontSize = "24px";
+                }}
+              />
+            </div>
             <span
-              className="logo-text-fallback"
               style={{
-                fontWeight: "bold",
-                fontSize: 32,
-                color: "#fff",
-                display: "none",
+                fontWeight: 700,
+                fontSize: "26px",
+                background: "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                letterSpacing: "-0.5px"
               }}
             >
               WeTour
@@ -148,13 +183,13 @@ export default function Navbar() {
               display: "none",
               background: "transparent",
               border: "none",
-              color: "#fff",
+              color: "#1e293b",
               fontSize: "24px",
               cursor: "pointer",
               padding: "8px",
               borderRadius: "4px"
             }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "#f1f5f9"}
             onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
           >
             {mobileMenuOpen ? "✕" : "☰"}
@@ -165,132 +200,113 @@ export default function Navbar() {
             className={`main-menu ${mobileMenuOpen ? 'mobile-open' : ''}`}
             style={{ 
               display: "flex", 
-              gap: 24, 
+              gap: 8, 
               alignItems: "center",
               flexWrap: "wrap"
             }}
           >
-            <Link 
-              to="/" 
-              style={{ 
-                color: "#fff", 
-                textDecoration: "none", 
-                fontWeight: 500,
-                padding: "8px 12px",
-                borderRadius: "6px",
-                transition: "background-color 0.2s"
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
-              onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-            >
-              🏠 Trang chủ
-            </Link>
-            <Link 
-              to="/tours" 
-              style={{ 
-                color: "#fff", 
-                textDecoration: "none", 
-                fontWeight: 500,
-                padding: "8px 12px",
-                borderRadius: "6px",
-                transition: "background-color 0.2s"
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
-              onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-            >
-              🎯 Tours
-            </Link>
-            <Link 
-              to="/destinations" 
-              style={{ 
-                color: "#fff", 
-                textDecoration: "none", 
-                fontWeight: 500,
-                padding: "8px 12px",
-                borderRadius: "6px",
-                transition: "background-color 0.2s"
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
-              onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-            >
-              🗺️ Điểm đến
-            </Link>
-            <Link 
-              to="/promotions" 
-              style={{ 
-                color: "#fff", 
-                textDecoration: "none", 
-                fontWeight: 500,
-                padding: "8px 12px",
-                borderRadius: "6px",
-                transition: "background-color 0.2s"
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
-              onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-            >
-              🎁 Khuyến mãi
-            </Link>
-
-            <Link 
-              to="/blog" 
-              style={{ 
-                color: "#fff", 
-                textDecoration: "none", 
-                fontWeight: 500,
-                padding: "8px 12px",
-                borderRadius: "6px",
-                transition: "background-color 0.2s"
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = "rgba(255,255,255,0.1)"}
-              onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-            >
-              📝 Blog
-            </Link>
-
+            {[
+              { path: "/", label: "Trang chủ" },
+              { path: "/tours", label: "Tour du lịch" },
+              { path: "/hotels", label: "Khách sạn" },
+              { path: "/flights", label: "Chuyến bay" },
+              { path: "/custom-tour", label: "Tự Thiết Kế" },
+              { path: "/blog", label: "Blog" }
+            ].map((item) => {
+              const active = isActive(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  style={{
+                    color: active ? "#0E7490" : "#475569",
+                    textDecoration: "none",
+                    fontWeight: active ? 600 : 500,
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                    position: "relative",
+                    fontSize: "15px",
+                    background: active ? "#f0f9ff" : "transparent"
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active) {
+                      e.target.style.color = "#0E7490";
+                      e.target.style.backgroundColor = "#f8fafc";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) {
+                      e.target.style.color = "#475569";
+                      e.target.style.backgroundColor = "transparent";
+                    }
+                  }}
+                >
+                  {item.label}
+                  {active && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        bottom: "-2px",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        width: "60%",
+                        height: "2px",
+                        background: "#0E7490",
+                        borderRadius: "2px"
+                      }}
+                    />
+                  )}
+                </Link>
+              );
+            })}
 
             {/* Nếu chưa đăng nhập */}
             {!user && (
               <>
                 <Link 
+                  to="/register" 
+                  style={{ 
+                    color: "#0E7490", 
+                    textDecoration: "none",
+                    padding: "10px 20px",
+                    borderRadius: "6px",
+                    border: "1px solid #0E7490",
+                    background: "transparent",
+                    transition: "all 0.2s",
+                    fontWeight: 500,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = "#f0f9ff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = "transparent";
+                  }}
+                >
+                  Đăng ký
+                </Link>
+                <Link 
                   to="/login" 
                   style={{ 
                     color: "#fff", 
                     textDecoration: "none",
-                    padding: "8px 16px",
+                    padding: "10px 20px",
                     borderRadius: "6px",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    transition: "all 0.2s"
+                    background: "#0E7490",
+                    border: "none",
+                    transition: "all 0.2s",
+                    fontWeight: 500,
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = "rgba(255,255,255,0.1)";
-                    e.target.style.borderColor = "rgba(255,255,255,0.5)";
+                    e.target.style.background = "#0891b2";
+                    e.target.style.transform = "translateY(-1px)";
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = "transparent";
-                    e.target.style.borderColor = "rgba(255,255,255,0.3)";
+                    e.target.style.background = "#0E7490";
+                    e.target.style.transform = "translateY(0)";
                   }}
                 >
                   Đăng nhập
-                </Link>
-                <Link 
-                  to="/register" 
-                  style={{ 
-                    color: "#fff", 
-                    textDecoration: "none",
-                    padding: "8px 16px",
-                    borderRadius: "6px",
-                    background: "rgba(255,255,255,0.2)",
-                    border: "1px solid rgba(255,255,255,0.3)",
-                    transition: "all 0.2s"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = "rgba(255,255,255,0.3)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = "rgba(255,255,255,0.2)";
-                  }}
-                >
-                  Đăng ký
                 </Link>
               </>
             )}
@@ -481,30 +497,97 @@ export default function Navbar() {
                       menu.style.display = menu.style.display === "block" ? "none" : "block";
                     }}
                     style={{
-                      background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
-                      color: "#fff",
-                      fontWeight: 600,
+                      background: "transparent",
                       border: "none",
                       cursor: "pointer",
-                      fontSize: 14,
-                      padding: "8px 16px",
-                      borderRadius: "8px",
+                      padding: "0",
                       transition: "all 0.2s",
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
-                      boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)"
+                      gap: "8px"
                     }}
                     onMouseEnter={(e) => {
-                      e.target.style.transform = "translateY(-1px)";
-                      e.target.style.boxShadow = "0 4px 12px rgba(245, 158, 11, 0.4)";
+                      e.currentTarget.querySelector('.avatar-container').style.transform = "scale(1.05)";
                     }}
                     onMouseLeave={(e) => {
-                      e.target.style.transform = "translateY(0)";
-                      e.target.style.boxShadow = "0 2px 8px rgba(245, 158, 11, 0.3)";
+                      e.currentTarget.querySelector('.avatar-container').style.transform = "scale(1)";
                     }}
                   >
-                    👤 <strong style={{ color: "#fff" }}>{user.name}</strong> ▼
+                    <div
+                      className="avatar-container"
+                      style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "50%",
+                        overflow: "hidden",
+                        border: "2px solid #0E7490",
+                        background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "all 0.2s",
+                        boxShadow: "0 2px 8px rgba(14, 116, 144, 0.2)",
+                        position: "relative"
+                      }}
+                    >
+                      {user.avatar && user.avatar.trim() ? (
+                        <img
+                          key={`avatar-${avatarKey}-${user.avatar?.substring(0, 50)}`} // Force re-render when avatar changes
+                          src={user.avatar}
+                          alt={user.name}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            zIndex: 1
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                            const fallback = e.target.parentElement.querySelector('.avatar-fallback');
+                            if (fallback) fallback.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="avatar-fallback"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          display: user.avatar && user.avatar.trim() ? "none" : "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          zIndex: 0
+                        }}
+                      >
+                        <span style={{
+                          color: "#fff",
+                          fontSize: "18px",
+                          fontWeight: 600,
+                          textTransform: "uppercase"
+                        }}>
+                          {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+                        </span>
+                      </div>
+                    </div>
+                    <span style={{
+                      color: "#1e293b",
+                      fontWeight: 500,
+                      fontSize: "15px"
+                    }}>
+                      {user.name}
+                    </span>
+                    <span style={{
+                      color: "#64748b",
+                      fontSize: "12px"
+                    }}>
+                      ▼
+                    </span>
                   </button>
 
                   <div
@@ -529,7 +612,7 @@ export default function Navbar() {
                     }
                   >
                     <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
-                      <div style={{ fontWeight: 600, color: "#1e293b" }}>👤 Tài khoản</div>
+                      <div style={{ fontWeight: 600, color: "#1e293b", fontSize: "16px" }}>Tài khoản</div>
                       <div style={{ fontSize: "12px", color: "#64748b" }}>{user.email}</div>
                     </div>
                     
@@ -541,13 +624,15 @@ export default function Navbar() {
                         textDecoration: "none",
                         color: "#374151",
                         borderBottom: "1px solid #f1f5f9",
-                        transition: "background-color 0.2s"
+                        transition: "background-color 0.2s",
+                        fontSize: "15px",
+                        fontFamily: "inherit"
                       }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
                       onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
                       onClick={() => document.getElementById("userMenu").style.display = "none"}
                     >
-                      👤 Thông tin cá nhân
+                      Thông tin cá nhân
                     </Link>
                     
                     <Link
@@ -558,13 +643,15 @@ export default function Navbar() {
                         textDecoration: "none",
                         color: "#374151",
                         borderBottom: "1px solid #f1f5f9",
-                        transition: "background-color 0.2s"
+                        transition: "background-color 0.2s",
+                        fontSize: "15px",
+                        fontFamily: "inherit"
                       }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
                       onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
                       onClick={() => document.getElementById("userMenu").style.display = "none"}
                     >
-                      🤖 AI Gợi ý
+                      AI Gợi ý
                     </Link>
                     
                     <Link
@@ -575,13 +662,34 @@ export default function Navbar() {
                         textDecoration: "none",
                         color: "#374151",
                         borderBottom: "1px solid #f1f5f9",
-                        transition: "background-color 0.2s"
+                        transition: "background-color 0.2s",
+                        fontSize: "15px",
+                        fontFamily: "inherit"
                       }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
                       onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
                       onClick={() => document.getElementById("userMenu").style.display = "none"}
                     >
-                      📋 Đặt tour
+                      Đặt tour
+                    </Link>
+                    
+                    <Link
+                      to="/promotions"
+                      style={{
+                        display: "block",
+                        padding: "12px 16px",
+                        textDecoration: "none",
+                        color: "#374151",
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background-color 0.2s",
+                        fontSize: "15px",
+                        fontFamily: "inherit"
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                      onClick={() => document.getElementById("userMenu").style.display = "none"}
+                    >
+                      Khuyến mãi
                     </Link>
                     
                     <Link
@@ -592,13 +700,15 @@ export default function Navbar() {
                         textDecoration: "none",
                         color: "#374151",
                         borderBottom: "1px solid #f1f5f9",
-                        transition: "background-color 0.2s"
+                        transition: "background-color 0.2s",
+                        fontSize: "15px",
+                        fontFamily: "inherit"
                       }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
                       onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
                       onClick={() => document.getElementById("userMenu").style.display = "none"}
                     >
-                      ❤️ Yêu thích
+                      Yêu thích
                     </Link>
                     
                     <Link
@@ -609,13 +719,53 @@ export default function Navbar() {
                         textDecoration: "none",
                         color: "#374151",
                         borderBottom: "1px solid #f1f5f9",
-                        transition: "background-color 0.2s"
+                        transition: "background-color 0.2s",
+                        fontSize: "15px",
+                        fontFamily: "inherit"
                       }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
                       onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
                       onClick={() => document.getElementById("userMenu").style.display = "none"}
                     >
-                      ⚖️ So sánh
+                      So sánh
+                    </Link>
+                    
+                    <Link
+                      to="/destinations"
+                      style={{
+                        display: "block",
+                        padding: "12px 16px",
+                        textDecoration: "none",
+                        color: "#374151",
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background-color 0.2s",
+                        fontSize: "15px",
+                        fontFamily: "inherit"
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                      onClick={() => document.getElementById("userMenu").style.display = "none"}
+                    >
+                      Điểm đến
+                    </Link>
+                    
+                    <Link
+                      to="/contact"
+                      style={{
+                        display: "block",
+                        padding: "12px 16px",
+                        textDecoration: "none",
+                        color: "#374151",
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background-color 0.2s",
+                        fontSize: "15px",
+                        fontFamily: "inherit"
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                      onClick={() => document.getElementById("userMenu").style.display = "none"}
+                    >
+                      Liên hệ
                     </Link>
                     
                     <button
@@ -632,14 +782,15 @@ export default function Navbar() {
                         borderTop: "1px solid #f1f5f9",
                         color: "#ef4444",
                         cursor: "pointer",
-                        fontSize: "14px",
+                        fontSize: "15px",
                         fontWeight: 500,
-                        transition: "background-color 0.2s"
+                        transition: "background-color 0.2s",
+                        fontFamily: "inherit"
                       }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = "#fef2f2"}
                       onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
                     >
-                      🚪 Đăng xuất
+                      Đăng xuất
                     </button>
                   </div>
                 </div>

@@ -39,7 +39,23 @@ const createBookingHandler = async (req, res, isGuest = false) => {
 
     const user_id = isGuest ? null : req.user.id;
     const customerName = isGuest ? guest_name : req.user.name;
-    const customerEmail = isGuest ? guest_email : (req.user.email || null);
+    
+    // Lấy email: ưu tiên lấy từ database nếu là user, nếu không có thì lấy từ token
+    let customerEmail = null;
+    if (isGuest) {
+      customerEmail = guest_email;
+    } else {
+      // Lấy email từ database để đảm bảo có email chính xác
+      try {
+        const userFromDb = await User.findByPk(req.user.id, {
+          attributes: ['id', 'name', 'email']
+        });
+        customerEmail = userFromDb?.email || req.user.email || null;
+      } catch (err) {
+        console.error("Error fetching user email:", err);
+        customerEmail = req.user.email || null;
+      }
+    }
 
     const tour = await Tour.findByPk(tour_id);
     if (!tour) return res.status(404).json({ message: "Tour không tồn tại" });
@@ -118,7 +134,15 @@ const createBookingHandler = async (req, res, isGuest = false) => {
           code: promotion_code.toUpperCase(),
           is_active: true,
           valid_from: { [Op.lte]: new Date() },
-          valid_to: { [Op.gte]: new Date() }
+          valid_to: { [Op.gte]: new Date() },
+          // Check service_type: must be "tour", "all", or combo that includes tour
+          [Op.or]: [
+            { service_type: "tour" },
+            { service_type: "all" },
+            { service_type: "tour_hotel" },
+            { service_type: "tour_flight" },
+            { service_type: null }
+          ]
         }
       });
 
@@ -185,13 +209,13 @@ const createBookingHandler = async (req, res, isGuest = false) => {
     // Create notification for customer (chỉ nếu có user_id)
     if (user_id) {
       try {
-        await Notification.create({
-          user_id: user_id,
-          title: "🎉 Đặt tour thành công!",
-          message: `Bạn đã đặt tour "${tour.name}" thành công. Vui lòng chờ xác nhận từ chúng tôi.`,
-          type: "booking",
-          is_read: false
-        });
+    await Notification.create({
+      user_id: user_id,
+      title: "🎉 Đặt tour thành công!",
+      message: `Bạn đã đặt tour "${tour.name}" thành công. Vui lòng chờ xác nhận từ chúng tôi.`,
+      type: "booking",
+      is_read: false
+    });
       } catch (notifError) {
         console.error("Error creating user notification:", notifError);
       }
@@ -218,32 +242,61 @@ const createBookingHandler = async (req, res, isGuest = false) => {
 
     // Send booking confirmation email
     try {
-      if (customerEmail) {
+      if (!customerEmail) {
+        console.warn(`⚠️ Cannot send booking email: email missing`);
+        console.warn(`   isGuest: ${isGuest}, user_id: ${user_id}, guest_email: ${guest_email}`);
+      } else {
         console.log(`📧 Attempting to send booking confirmation email to: ${customerEmail}`);
         
-        // Tạo object user tạm cho guest
-        const emailUser = isGuest ? {
-          id: null,
-          name: guest_name,
-          email: guest_email
-        } : await User.findByPk(req.user.id, {
-          attributes: ['id', 'name', 'email']
-        });
+        // Tạo object user tạm cho guest hoặc lấy từ database cho user
+        let emailUser = null;
+        if (isGuest) {
+          emailUser = {
+            id: null,
+            name: guest_name,
+            email: guest_email
+          };
+        } else {
+          // Lấy thông tin user từ database để đảm bảo có đầy đủ thông tin
+          try {
+            emailUser = await User.findByPk(req.user.id, {
+              attributes: ['id', 'name', 'email']
+            });
+            // Nếu không tìm thấy user hoặc không có email, dùng thông tin từ token
+            if (!emailUser || !emailUser.email) {
+              emailUser = {
+                id: req.user.id,
+                name: req.user.name || customerName,
+                email: customerEmail
+              };
+            }
+          } catch (err) {
+            console.error("Error fetching user for email:", err);
+            emailUser = {
+              id: req.user.id,
+              name: req.user.name || customerName,
+              email: customerEmail
+            };
+          }
+        }
         
-        if (emailUser) {
+        if (emailUser && emailUser.email) {
           const emailResult = await sendBookingConfirmationEmail(emailUser, booking, tour);
           
           if (emailResult.success) {
             console.log(`✅ Booking confirmation email sent successfully to ${customerEmail}`);
           } else {
             console.error(`❌ Failed to send booking confirmation email: ${emailResult.error}`);
+            console.error(`   Error details:`, emailResult);
           }
+        } else {
+          console.error(`❌ Cannot send email: emailUser is null or missing email`);
+          console.error(`   emailUser:`, emailUser);
         }
-      } else {
-        console.warn(`⚠️ Cannot send booking email: email missing`);
       }
     } catch (emailError) {
       console.error("❌ Error sending booking email:", emailError);
+      console.error("   Error stack:", emailError.stack);
     }
 
     res.json({ 
@@ -312,16 +365,16 @@ router.put("/cancel/:id", verifyToken, async (req, res) => {
 
     // Send notification to user when booking is cancelled (chỉ nếu có user_id)
     if (booking.user_id) {
-      try {
-        await Notification.create({
-          user_id: booking.user_id,
-          title: "❌ Đã hủy đặt tour",
-          message: `Đặt tour "${booking.Tour?.name || 'Tour'}" (Mã: #${booking.id}) đã được hủy thành công.`,
-          type: "cancellation",
-          is_read: false
-        });
-      } catch (notifError) {
-        console.error("Error creating cancellation notification:", notifError);
+    try {
+      await Notification.create({
+        user_id: booking.user_id,
+        title: "❌ Đã hủy đặt tour",
+        message: `Đặt tour "${booking.Tour?.name || 'Tour'}" (Mã: #${booking.id}) đã được hủy thành công.`,
+        type: "cancellation",
+        is_read: false
+      });
+    } catch (notifError) {
+      console.error("Error creating cancellation notification:", notifError);
       }
     }
 
@@ -389,6 +442,32 @@ router.put("/payment/:id", verifyToken, async (req, res) => {
 
     res.json({ message: "Đã thanh toán thành công!", booking });
   } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 📋 API lấy chi tiết booking theo ID
+router.get("/:id", async (req, res) => {
+  try {
+    const booking = await Booking.findByPk(req.params.id, {
+      include: [
+        { model: Tour },
+        { model: User, required: false },
+        { 
+          model: Promotion, 
+          required: false,
+          attributes: ["id", "title", "code", "discount_type", "discount_value"]
+        }
+      ]
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Không tìm thấy booking" });
+    }
+
+    res.json(booking);
+  } catch (err) {
+    console.error("Error fetching booking:", err);
     res.status(500).json({ message: err.message });
   }
 });

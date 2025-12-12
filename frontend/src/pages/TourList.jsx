@@ -2,6 +2,7 @@ import React, { useEffect, useState, useContext } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
+import { matchesSearch } from "../utils/vietnameseUtils";
 
 export default function TourList() {
   const [tours, setTours] = useState([]);
@@ -92,15 +93,19 @@ export default function TourList() {
   useEffect(() => {
     let filtered = [...tours];
 
-    // Filter by search term - chỉ tìm trong tên tour và điểm đến, không tìm trong description
+    // Filter by search term - hỗ trợ tìm kiếm không dấu
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase().trim();
       filtered = filtered.filter((tour) => {
-        const tourNameLower = tour.name.toLowerCase();
-        const tourDestLower = tour.destination?.toLowerCase() || "";
+        // Tìm kiếm có dấu (case-insensitive)
+        const nameMatch = tour.name.toLowerCase().includes(searchLower);
+        const destMatch = tour.destination?.toLowerCase().includes(searchLower) || false;
         
-        // Chỉ tìm trong tên tour và điểm đến, không tìm trong description
-        return tourNameLower.includes(searchLower) || tourDestLower.includes(searchLower);
+        // Tìm kiếm không dấu
+        const nameMatchNoAccent = matchesSearch(tour.name, searchTerm);
+        const destMatchNoAccent = matchesSearch(tour.destination || "", searchTerm);
+        
+        return nameMatch || destMatch || nameMatchNoAccent || destMatchNoAccent;
       });
     }
 
@@ -140,11 +145,11 @@ export default function TourList() {
 
     // Sort tours - ưu tiên tour có tên khớp khi search
     filtered.sort((a, b) => {
-      // Nếu có searchTerm, ưu tiên tour có tên khớp trước
+      // Nếu có searchTerm, ưu tiên tour có tên khớp trước (cả có dấu và không dấu)
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase().trim();
-        const aNameMatch = a.name.toLowerCase().includes(searchLower);
-        const bNameMatch = b.name.toLowerCase().includes(searchLower);
+        const aNameMatch = a.name.toLowerCase().includes(searchLower) || matchesSearch(a.name, searchTerm);
+        const bNameMatch = b.name.toLowerCase().includes(searchLower) || matchesSearch(b.name, searchTerm);
         if (aNameMatch && !bNameMatch) return -1;
         if (!aNameMatch && bNameMatch) return 1;
       }

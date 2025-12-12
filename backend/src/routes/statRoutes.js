@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateAdmin } from "../middleware/authMiddleware.js";
-import { Booking, Tour, User, Payment, Promotion } from "../models/index.js";
+import { Booking, Tour, User, Payment, Promotion, HotelBooking, FlightBooking } from "../models/index.js";
 import { sequelize, Op } from "../config/db.js";
 
 const router = express.Router();
@@ -77,29 +77,66 @@ router.get("/monthly", authenticateAdmin, async (req, res) => {
 // ✅ Top 5 tour đặt nhiều nhất
 router.get("/top-tours", authenticateAdmin, async (req, res) => {
   try {
-    const data = await Booking.findAll({
+    // Get tours with bookings (all statuses, but prioritize paid/completed for revenue)
+    let data = await Booking.findAll({
       attributes: [
         "tour_id",
         [sequelize.fn("COUNT", sequelize.col("tour_id")), "bookings"],
         [sequelize.fn("SUM", sequelize.col("total_price")), "revenue"],
       ],
-      include: [{ model: Tour, attributes: ["name"] }],
+      include: [
+        {
+          model: Tour,
+          // Không dùng cột "views" vì có thể không tồn tại trong DB
+          attributes: ["id", "name", "destination", "price", "image"],
+          required: true,
+        },
+      ],
       where: {
-        status: { [Op.in]: ["paid", "completed"] },
-        booking_date: { [Op.ne]: "0000-00-00" },
+        tour_id: { [Op.ne]: null }
       },
       group: ["tour_id", "Tour.id"],
       order: [[sequelize.fn("COUNT", sequelize.col("tour_id")), "DESC"]],
       limit: 5,
     });
 
+    // If no tours with bookings, get popular tours by views
+    if (data.length === 0) {
+      const popularTours = await Tour.findAll({
+        // Không select cột "views" để tránh lỗi khi DB chưa có
+        attributes: ["id", "name", "destination", "price", "image"],
+        order: [["id", "DESC"]],
+        limit: 5,
+      });
+
+      return res.json(
+        popularTours.map((tour) => ({
+          id: tour.id,
+          name: tour.name || "Không xác định",
+          destination: tour.destination || "",
+          price: tour.price ? Number(tour.price) : 0,
+          image: tour.image || null,
+          views: 0,
+          bookings: 0,
+          revenue: 0,
+        }))
+      );
+    }
+
     res.json(
-      data.map((item) => ({
-        id: item.tour_id,
-        name: item.Tour?.name || "Không xác định",
-        bookings: Number(item.dataValues.bookings),
-        revenue: Number(item.dataValues.revenue),
-      }))
+      data.map((item) => {
+        const tourPrice = item.Tour?.price;
+        return {
+          id: item.tour_id,
+          name: item.Tour?.name || "Không xác định",
+          destination: item.Tour?.destination || "",
+          price: tourPrice ? Number(tourPrice) : 0,
+          image: item.Tour?.image || null,
+          views: 0,
+          bookings: Number(item.dataValues.bookings || 0),
+          revenue: Number(item.dataValues.revenue || 0),
+        };
+      })
     );
   } catch (error) {
     console.error("❌ Error /api/stats/top-tours:", error);
@@ -215,18 +252,47 @@ router.get("/summary", authenticateAdmin, async (req, res) => {
   try {
     const totalTours = await Tour.count();
     const totalUsers = await User.count();
-    const totalBookings = await Booking.count();
-    const monthlyRevenue = await Booking.sum("total_price", {
+    
+    // Count tour bookings
+    const tourBookingsCount = await Booking.count();
+    
+    // Count hotel bookings
+    const hotelBookingsCount = await HotelBooking.count();
+    const totalBookings = tourBookingsCount + hotelBookingsCount;
+    
+    // Calculate tour revenue
+    const tourRevenue = await Booking.sum("total_price", {
       where: {
         status: { [Op.in]: ["paid", "completed"] },
       }
     }) || 0;
+    
+    // Calculate hotel revenue (confirmed and completed bookings)
+    const hotelRevenue = await HotelBooking.sum("total_price", {
+      where: {
+        status: { [Op.in]: ["confirmed", "completed"] },
+      }
+    }) || 0;
+    
+    const monthlyRevenue = tourRevenue + hotelRevenue;
+    
+    // Calculate new users (created in last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const newUsers = await User.count({
+      where: {
+        created_at: {
+          [Op.gte]: thirtyDaysAgo
+        }
+      }
+    });
 
     res.json({
       totalTours,
       totalUsers,
       totalBookings,
-      monthlyRevenue
+      monthlyRevenue,
+      newUsers
     });
   } catch (error) {
     console.error("❌ Error /api/stats/summary:", error);
@@ -238,16 +304,47 @@ router.get("/overview", authenticateAdmin, async (req, res) => {
   try {
     const totalTours = await Tour.count();
     const totalUsers = await User.count();
-    const totalBookings = await Booking.count();
-    const totalRevenue = await Booking.sum("total_price", {
-      where: { status: { [Op.in]: ["paid", "completed"] } }
-    }) || 0;
+
+    // Tour bookings & revenue
+    const totalTourBookings = await Booking.count();
+    const tourRevenue =
+      (await Booking.sum("total_price", {
+        where: { status: { [Op.in]: ["paid", "completed"] } },
+      })) || 0;
+
+    // Hotel bookings & revenue
+    const totalHotelBookings = await HotelBooking.count();
+    const hotelRevenue =
+      (await HotelBooking.sum("total_price", {
+        where: { status: { [Op.in]: ["confirmed", "completed"] } },
+      })) || 0;
+
+    // Flight bookings & revenue
+    const totalFlightBookings = await FlightBooking.count();
+    const flightRevenue =
+      (await FlightBooking.sum("total_price", {
+        where: {
+          [Op.or]: [
+            { status: { [Op.in]: ["confirmed", "completed"] } },
+            { payment_status: "paid" },
+          ],
+        },
+      })) || 0;
+
+    const totalBookings = totalTourBookings + totalHotelBookings + totalFlightBookings;
+    const totalRevenue = tourRevenue + hotelRevenue + flightRevenue;
 
     res.json({
       totalTours,
       totalUsers,
       totalBookings,
-      totalRevenue
+      totalTourBookings,
+      totalHotelBookings,
+      totalFlightBookings,
+      totalRevenue,
+      tourRevenue,
+      hotelRevenue,
+      flightRevenue,
     });
   } catch (error) {
     console.error("❌ Error /api/stats/overview:", error);
@@ -296,6 +393,69 @@ router.get("/bookings", authenticateAdmin, async (req, res) => {
       bookings: Number(item.dataValues.count || 0)
     })));
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ✅ Hotel bookings stats (by date)
+router.get("/hotel-bookings", authenticateAdmin, async (req, res) => {
+  try {
+    const data = await HotelBooking.findAll({
+      attributes: [
+        [sequelize.fn("DATE", sequelize.col("check_in_date")), "date"],
+        [sequelize.fn("COUNT", sequelize.col("id")), "count"],
+        [sequelize.fn("SUM", sequelize.col("total_price")), "revenue"],
+      ],
+      where: {
+        status: { [Op.in]: ["confirmed", "completed"] },
+      },
+      group: [sequelize.fn("DATE", sequelize.col("check_in_date"))],
+      order: [[sequelize.fn("DATE", sequelize.col("check_in_date")), "ASC"]],
+      limit: 30,
+    });
+
+    res.json(
+      data.map((item) => ({
+        date: item.dataValues.date,
+        bookings: Number(item.dataValues.count || 0),
+        revenue: Number(item.dataValues.revenue || 0),
+      }))
+    );
+  } catch (error) {
+    console.error("❌ Error /api/stats/hotel-bookings:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ✅ Flight bookings stats (by date)
+router.get("/flight-bookings", authenticateAdmin, async (req, res) => {
+  try {
+    const data = await FlightBooking.findAll({
+      attributes: [
+        [sequelize.fn("DATE", sequelize.col("created_at")), "date"],
+        [sequelize.fn("COUNT", sequelize.col("id")), "count"],
+        [sequelize.fn("SUM", sequelize.col("total_price")), "revenue"],
+      ],
+      where: {
+        [Op.or]: [
+          { status: { [Op.in]: ["confirmed", "completed"] } },
+          { payment_status: "paid" },
+        ],
+      },
+      group: [sequelize.fn("DATE", sequelize.col("created_at"))],
+      order: [[sequelize.fn("DATE", sequelize.col("created_at")), "ASC"]],
+      limit: 30,
+    });
+
+    res.json(
+      data.map((item) => ({
+        date: item.dataValues.date,
+        bookings: Number(item.dataValues.count || 0),
+        revenue: Number(item.dataValues.revenue || 0),
+      }))
+    );
+  } catch (error) {
+    console.error("❌ Error /api/stats/flight-bookings:", error);
     res.status(500).json({ message: error.message });
   }
 });

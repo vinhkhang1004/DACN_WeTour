@@ -12,6 +12,8 @@ export default function AdminTourManagement() {
   const [toursPerPage] = useState(10);
   const [showForm, setShowForm] = useState(false);
   const [editingTour, setEditingTour] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     destination: "",
@@ -25,6 +27,9 @@ export default function AdminTourManagement() {
     max_people: "",
     category: "",
     categories: [],
+    category_ids: [],
+    travel_style: "",
+    tour_type: "Tour ghép",
     includes: "",
     excludes: "",
     itinerary: "",
@@ -39,7 +44,17 @@ export default function AdminTourManagement() {
 
   useEffect(() => {
     fetchTours();
+    fetchCategories();
   }, [searchTerm, sortBy, sortOrder, currentPage]);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get("/admin/categories", { headers });
+      setCategories(response.data);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  };
 
   const fetchTours = async () => {
     try {
@@ -91,6 +106,9 @@ export default function AdminTourManagement() {
         max_people: formData.max_people || null,
         category: formData.category || "",
         categories: (formData.categories || []).join(','),
+        category_ids: formData.category_ids || [],
+        travel_style: formData.travel_style || "",
+        tour_type: formData.tour_type || "Tour ghép",
         includes: formData.includes || "",
         excludes: formData.excludes || "",
         itinerary: itineraryJson,
@@ -128,6 +146,9 @@ export default function AdminTourManagement() {
         max_people: "",
         category: "",
         categories: [],
+        category_ids: [],
+        travel_style: "",
+        tour_type: "Tour ghép",
         includes: "",
         excludes: "",
         itinerary: "",
@@ -165,6 +186,9 @@ export default function AdminTourManagement() {
       }
     }
     
+    // Get category IDs from tour
+    const categoryIds = tour.Categories ? tour.Categories.map(c => c.id) : [];
+    
     setFormData({
       name: tour.name || "",
       destination: tour.destination || "",
@@ -178,6 +202,9 @@ export default function AdminTourManagement() {
       max_people: tour.max_people || "",
       category: tour.category || "",
       categories: tour.categories ? String(tour.categories).split(',').map(s=>s.trim()).filter(Boolean) : [],
+      category_ids: categoryIds,
+      travel_style: tour.travel_style || "",
+      tour_type: tour.tour_type || "Tour ghép",
       includes: tour.includes || "",
       excludes: tour.excludes || "",
       itinerary: tour.itinerary || "",
@@ -543,37 +570,97 @@ export default function AdminTourManagement() {
                 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Danh mục</label>
-                <input
-                  type="text"
-                  value={formData.category}
-                  onChange={(e) => setFormData({...formData, category: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                  {categories.length === 0 ? (
+                    <p className="text-sm text-gray-500">Chưa có danh mục nào. Vui lòng thêm danh mục mới.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {categories.map((cat) => (
+                        <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.category_ids.includes(cat.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({
+                                  ...formData,
+                                  category_ids: [...formData.category_ids, cat.id]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  category_ids: formData.category_ids.filter(id => id !== cat.id)
+                                });
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm">{cat.icon} {cat.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="mt-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Thêm nhiều danh mục (tags)</label>
-                  <div className="flex gap-2 mb-2 flex-wrap">
-                    {(formData.categories||[]).map((c, idx)=>(
-                      <span key={idx} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                        {c}
-                        <button type="button" className="text-blue-700" onClick={()=>{
-                          const arr = [...formData.categories];
-                          arr.splice(idx,1);
-                          setFormData({...formData, categories: arr});
-                        }}>×</button>
-                      </span>
-                    ))}
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Thêm danh mục mới</label>
                   <div className="flex gap-2">
-                    <input id="catInput" placeholder="Nhập danh mục rồi nhấn Thêm" className="flex-1 px-3 py-2 border border-gray-300 rounded" />
-                    <button type="button" className="px-3 py-2 border rounded" onClick={()=>{
-                      const inp = document.getElementById('catInput');
-                      const v = (inp.value||'').trim();
-                      if(!v) return;
-                      setFormData({...formData, categories: [ ...(formData.categories||[]), v ]});
-                      inp.value='';
-                    }}>Thêm</button>
+                    <input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Nhập tên danh mục mới"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!newCategoryName.trim()) return;
+                        try {
+                          const response = await api.post("/admin/categories", {
+                            name: newCategoryName.trim(),
+                            icon: "🏷️"
+                          }, { headers });
+                          setCategories([...categories, response.data]);
+                          setNewCategoryName("");
+                        } catch (error) {
+                          alert(error.response?.data?.message || "Có lỗi xảy ra khi thêm danh mục");
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Thêm
+                    </button>
                   </div>
                 </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Thể loại tour</label>
+                <select
+                  value={formData.tour_type}
+                  onChange={(e) => setFormData({...formData, tour_type: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Tour ghép">Tour ghép</option>
+                  <option value="Tour riêng">Tour riêng</option>
+                  <option value="Tour VIP">Tour VIP</option>
+                  <option value="Tour đoàn">Tour đoàn</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Phong cách du lịch</label>
+                <select
+                  value={formData.travel_style}
+                  onChange={(e) => setFormData({...formData, travel_style: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Chọn phong cách...</option>
+                  <option value="Tiết kiệm">Tiết kiệm</option>
+                  <option value="Trung bình">Trung bình</option>
+                  <option value="Cao cấp">Cao cấp</option>
+                  <option value="Luxury">Luxury</option>
+                </select>
               </div>
               
               <div>

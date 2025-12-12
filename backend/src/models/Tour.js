@@ -11,6 +11,8 @@ export const Tour = sequelize.define("Tour", {
   max_people: { type: DataTypes.INTEGER, allowNull: true },
   category: { type: DataTypes.STRING, allowNull: true },
   categories: { type: DataTypes.TEXT, allowNull: true }, // Comma-separated or JSON
+  travel_style: { type: DataTypes.STRING, allowNull: true }, // Tiết kiệm, Trung bình, Cao cấp, Luxury
+  tour_type: { type: DataTypes.STRING, allowNull: true }, // Tour ghép, Tour riêng, Tour VIP
   includes: { type: DataTypes.TEXT, allowNull: true },
   excludes: { type: DataTypes.TEXT, allowNull: true },
   itinerary: { type: DataTypes.TEXT, allowNull: true }, // JSON array of itinerary days

@@ -1,6 +1,10 @@
 // Database configuration for migration
+// Convert 'localhost' to '127.0.0.1' to avoid MariaDB connection issues
+const dbHost = process.env.DB_HOST || '127.0.0.1';
+const normalizedHost = dbHost === 'localhost' ? '127.0.0.1' : dbHost;
+
 export const migrateConfig = {
-  host: process.env.DB_HOST || 'localhost',
+  host: normalizedHost,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '', // Thay đổi password của bạn
   database: process.env.DB_NAME || 'travel_db',

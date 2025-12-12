@@ -491,10 +491,10 @@ export default function Destinations() {
                       borderTop: "1px solid #f1f5f9",
                     }}
                   >
-                    <div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
                       <p
                         style={{
-                          margin: "0 0 4px",
+                          margin: 0,
                           color: "#0ea5e9",
                           fontWeight: 700,
                           fontSize: "24px",

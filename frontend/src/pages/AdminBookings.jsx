@@ -117,8 +117,8 @@ export default function AdminBookings() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {b.user_id ? (
                           <>
-                            <div className="text-sm font-medium text-gray-900">{b.User?.name || "N/A"}</div>
-                            <div className="text-sm text-gray-500">{b.User?.email || ""}</div>
+                        <div className="text-sm font-medium text-gray-900">{b.User?.name || "N/A"}</div>
+                        <div className="text-sm text-gray-500">{b.User?.email || ""}</div>
                           </>
                         ) : (
                           <>

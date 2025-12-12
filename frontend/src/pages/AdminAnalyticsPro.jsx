@@ -36,6 +36,16 @@ export default function AdminAnalyticsPro() {
   const [bookingData, setBookingData] = useState([]);
   const [tourData, setTourData] = useState([]);
   const [geographicData, setGeographicData] = useState([]);
+  const [hotelStats, setHotelStats] = useState({
+    totalBookings: 0,
+    revenue: 0,
+  });
+  const [flightStats, setFlightStats] = useState({
+    totalBookings: 0,
+    revenue: 0,
+  });
+  const [hotelBookingData, setHotelBookingData] = useState([]);
+  const [flightBookingData, setFlightBookingData] = useState([]);
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -50,7 +60,18 @@ export default function AdminAnalyticsPro() {
     try {
       setLoading(true);
       
-      const [overviewRes, revenueRes, monthlyRes, userRes, bookingRes, tourRes, bookingStatusRes, geoRes] = await Promise.all([
+      const [
+        overviewRes,
+        revenueRes,
+        monthlyRes,
+        userRes,
+        bookingRes,
+        tourRes,
+        bookingStatusRes,
+        geoRes,
+        hotelBookingsRes,
+        flightBookingsRes
+      ] = await Promise.all([
         api.get("/stats/overview", { headers }).catch(() => ({ data: {} })),
         api.get("/stats/revenue", { headers }).catch(() => ({ data: [] })),
         api.get("/stats/monthly", { headers }).catch(() => ({ data: [] })),
@@ -58,19 +79,38 @@ export default function AdminAnalyticsPro() {
         api.get("/stats/bookings", { headers }).catch(() => ({ data: [] })),
         api.get("/stats/top-tours", { headers }).catch(() => ({ data: [] })),
         api.get("/stats/booking-status", { headers }).catch(() => ({ data: [] })),
-        api.get("/stats/revenue-by-destination", { headers }).catch(() => ({ data: [] }))
+        api.get("/stats/revenue-by-destination", { headers }).catch(() => ({ data: [] })),
+        api.get("/stats/hotel-bookings", { headers }).catch(() => ({ data: [] })),
+        api.get("/stats/flight-bookings", { headers }).catch(() => ({ data: [] }))
       ]);
 
-      // Set overview data
+      // Set overview data (bao gồm Tour, Khách sạn, Chuyến bay)
+      const overview = overviewRes.data || {};
       setAnalyticsData({
-        totalRevenue: overviewRes.data?.totalRevenue || 0,
-        totalUsers: overviewRes.data?.totalUsers || 0,
-        totalBookings: overviewRes.data?.totalBookings || 0,
-        totalTours: overviewRes.data?.totalTours || 0,
+        totalRevenue: overview.totalRevenue || 0,
+        totalUsers: overview.totalUsers || 0,
+        totalBookings: overview.totalBookings || 0,
+        totalTours: overview.totalTours || 0,
+        totalTourBookings: overview.totalTourBookings || overview.totalBookings || 0,
+        totalHotelBookings: overview.totalHotelBookings || 0,
+        totalFlightBookings: overview.totalFlightBookings || 0,
+        tourRevenue: overview.tourRevenue || 0,
+        hotelRevenue: overview.hotelRevenue || 0,
+        flightRevenue: overview.flightRevenue || 0,
         completedBookings: bookingStatusRes.data?.find(b => b.status === "completed")?.count || 0,
         paidBookings: bookingStatusRes.data?.find(b => b.status === "paid")?.count || 0,
         pendingBookings: bookingStatusRes.data?.find(b => b.status === "pending")?.count || 0,
         cancelledBookings: bookingStatusRes.data?.find(b => b.status === "cancelled")?.count || 0
+      });
+
+      // Simple stats cho khách sạn & chuyến bay dùng cho thẻ riêng
+      setHotelStats({
+        totalBookings: overview.totalHotelBookings || 0,
+        revenue: overview.hotelRevenue || 0,
+      });
+      setFlightStats({
+        totalBookings: overview.totalFlightBookings || 0,
+        revenue: overview.flightRevenue || 0,
       });
 
       // Format revenue data for charts (daily)
@@ -98,6 +138,20 @@ export default function AdminAnalyticsPro() {
       setBookingData(Array.isArray(bookingRes.data) ? bookingRes.data.map(item => ({
         date: item.date || "",
         bookings: Number(item.count || item.bookings || 0)
+      })) : []);
+
+      // Hotel booking chart data
+      setHotelBookingData(Array.isArray(hotelBookingsRes.data) ? hotelBookingsRes.data.map(item => ({
+        date: item.date || "",
+        bookings: Number(item.bookings || item.count || 0),
+        revenue: Number(item.revenue || 0)
+      })) : []);
+
+      // Flight booking chart data
+      setFlightBookingData(Array.isArray(flightBookingsRes.data) ? flightBookingsRes.data.map(item => ({
+        date: item.date || "",
+        bookings: Number(item.bookings || item.count || 0),
+        revenue: Number(item.revenue || 0)
       })) : []);
 
       // Format tour data
@@ -146,7 +200,9 @@ export default function AdminAnalyticsPro() {
     { id: "users", name: "Người dùng", icon: "👥" },
     { id: "bookings", name: "Đặt tour", icon: "📋" },
     { id: "tours", name: "Tour", icon: "🎯" },
-    { id: "geographic", name: "Địa lý", icon: "🌍" }
+    { id: "geographic", name: "Địa lý", icon: "🌍" },
+    { id: "hotels", name: "Khách sạn", icon: "🏨" },
+    { id: "flights", name: "Chuyến bay", icon: "✈️" }
   ];
 
   if (loading) {
@@ -244,7 +300,7 @@ export default function AdminAnalyticsPro() {
                   <div className="text-3xl text-yellow-600 mr-4">📋</div>
                   <div>
                     <div className="text-2xl font-bold text-gray-900">
-                      {formatNumber(analyticsData.totalBookings || 0)}
+                      {formatNumber(analyticsData.totalTourBookings || analyticsData.totalBookings || 0)}
                     </div>
                     <div className="text-sm text-gray-600">Tổng đặt tour</div>
                     <div className="text-xs text-green-600">+15.3% so với kỳ trước</div>
@@ -261,6 +317,39 @@ export default function AdminAnalyticsPro() {
                     </div>
                     <div className="text-sm text-gray-600">Tổng tour</div>
                     <div className="text-xs text-green-600">+5.7% so với kỳ trước</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Hotel & Flight summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <div className="flex items-center">
+                  <div className="text-3xl text-indigo-600 mr-4">🏨</div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {formatNumber(hotelStats.totalBookings || 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Đặt phòng khách sạn</div>
+                    <div className="text-xs text-gray-500">
+                      Doanh thu: {formatCurrency(hotelStats.revenue || 0)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <div className="flex items-center">
+                  <div className="text-3xl text-sky-600 mr-4">✈️</div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {formatNumber(flightStats.totalBookings || 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Đặt vé máy bay</div>
+                    <div className="text-xs text-gray-500">
+                      Doanh thu: {formatCurrency(flightStats.revenue || 0)}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -370,6 +459,106 @@ export default function AdminAnalyticsPro() {
                   ) : (
                     <div className="flex items-center justify-center h-full text-gray-500">
                       Chưa có dữ liệu
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hotels Tab */}
+        {activeTab === "hotels" && (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <div className="flex items-center">
+                  <div className="text-3xl text-indigo-600 mr-4">🏨</div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {formatNumber(hotelStats.totalBookings || 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Tổng đặt phòng khách sạn</div>
+                    <div className="text-xs text-gray-500">
+                      Doanh thu: {formatCurrency(hotelStats.revenue || 0)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border p-6 col-span-1 md:col-span-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Đặt phòng khách sạn theo thời gian</h3>
+                <div className="h-80">
+                  {hotelBookingData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={hotelBookingData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip
+                          formatter={(value, name) =>
+                            name === "revenue"
+                              ? [formatCurrency(value), "Doanh thu"]
+                              : [formatNumber(value), "Số booking"]
+                          }
+                        />
+                        <Line type="monotone" dataKey="bookings" stroke="#6366F1" strokeWidth={2} name="Số booking" />
+                        <Line type="monotone" dataKey="revenue" stroke="#22C55E" strokeWidth={2} name="Doanh thu" yAxisId={1} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      Chưa có dữ liệu đặt phòng khách sạn
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Flights Tab */}
+        {activeTab === "flights" && (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <div className="flex items-center">
+                  <div className="text-3xl text-sky-600 mr-4">✈️</div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {formatNumber(flightStats.totalBookings || 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Tổng đặt vé máy bay</div>
+                    <div className="text-xs text-gray-500">
+                      Doanh thu: {formatCurrency(flightStats.revenue || 0)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border p-6 col-span-1 md:col-span-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Đặt vé máy bay theo thời gian</h3>
+                <div className="h-80">
+                  {flightBookingData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={flightBookingData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip
+                          formatter={(value, name) =>
+                            name === "revenue"
+                              ? [formatCurrency(value), "Doanh thu"]
+                              : [formatNumber(value), "Số booking"]
+                          }
+                        />
+                        <Line type="monotone" dataKey="bookings" stroke="#0EA5E9" strokeWidth={2} name="Số booking" />
+                        <Line type="monotone" dataKey="revenue" stroke="#22C55E" strokeWidth={2} name="Doanh thu" yAxisId={1} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      Chưa có dữ liệu đặt vé máy bay
                     </div>
                   )}
                 </div>

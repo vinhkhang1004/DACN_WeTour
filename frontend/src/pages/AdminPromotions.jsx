@@ -18,6 +18,7 @@ export default function AdminPromotions() {
     valid_from: "",
     valid_to: "",
     category: "all",
+    service_type: "all", // all, tour, hotel, flight
     image: "",
     is_active: true,
     usage_limit: ""
@@ -47,14 +48,23 @@ export default function AdminPromotions() {
     e.preventDefault();
     try {
       const data = {
-        ...formData,
+        title: formData.title,
+        description: formData.description || "",
         code: formData.code.toUpperCase(),
+        discount_type: formData.discount_type,
         discount_value: parseFloat(formData.discount_value),
         min_amount: parseFloat(formData.min_amount || 0),
         max_discount: formData.max_discount ? parseFloat(formData.max_discount) : null,
-        usage_limit: formData.usage_limit ? parseInt(formData.usage_limit) : null,
-        is_active: formData.is_active === "true" || formData.is_active === true
+        valid_from: formData.valid_from,
+        valid_to: formData.valid_to,
+        category: formData.category || "all",
+        service_type: formData.service_type || "all",
+        image: formData.image || "",
+        is_active: formData.is_active === "true" || formData.is_active === true,
+        usage_limit: formData.usage_limit ? parseInt(formData.usage_limit) : null
       };
+
+      console.log("Submitting promotion data:", data);
 
       if (editingPromo) {
         await api.put(`/promotions/${editingPromo.id}`, data, { headers });
@@ -77,6 +87,7 @@ export default function AdminPromotions() {
         valid_from: "",
         valid_to: "",
         category: "all",
+        service_type: "all",
         image: "",
         is_active: true,
         usage_limit: ""
@@ -92,6 +103,7 @@ export default function AdminPromotions() {
     setEditingPromo(promo);
     setFormData({
       ...promo,
+      service_type: promo.service_type || "all",
       is_active: promo.is_active ? "true" : "false"
     });
     setShowForm(true);
@@ -165,6 +177,7 @@ export default function AdminPromotions() {
                   valid_from: "",
                   valid_to: "",
                   category: "all",
+                  service_type: "all",
                   image: "",
                   is_active: true,
                   usage_limit: ""
@@ -251,6 +264,15 @@ export default function AdminPromotions() {
                           Đơn tối thiểu: {formatCurrency(promo.min_amount)}
                         </div>
                         <div className="text-xs text-gray-500 capitalize">
+                          {promo.service_type === "all" ? "Tất cả dịch vụ" : 
+                           promo.service_type === "tour" ? "Tour du lịch" :
+                           promo.service_type === "hotel" ? "Khách sạn" :
+                           promo.service_type === "flight" ? "Chuyến bay" :
+                           promo.service_type === "tour_hotel" ? "Combo: Tour + Khách sạn" :
+                           promo.service_type === "tour_flight" ? "Combo: Tour + Chuyến bay" :
+                           promo.service_type === "hotel_flight" ? "Combo: Khách sạn + Chuyến bay" : "Tất cả"}
+                        </div>
+                        <div className="text-xs text-gray-400 capitalize mt-1">
                           {promo.category === "all" ? "Tất cả" : promo.category}
                         </div>
                       </td>
@@ -400,6 +422,24 @@ export default function AdminPromotions() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Không giới hạn"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Áp dụng cho *</label>
+                  <select
+                    value={formData.service_type}
+                    onChange={(e) => setFormData({...formData, service_type: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="all">Tất cả dịch vụ</option>
+                    <option value="tour">Tour du lịch</option>
+                    <option value="hotel">Khách sạn</option>
+                    <option value="flight">Chuyến bay</option>
+                    <option value="tour_hotel">Combo: Tour + Khách sạn</option>
+                    <option value="tour_flight">Combo: Tour + Chuyến bay</option>
+                    <option value="hotel_flight">Combo: Khách sạn + Chuyến bay</option>
+                  </select>
                 </div>
 
                 <div>

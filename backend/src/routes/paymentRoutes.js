@@ -231,7 +231,7 @@ router.get("/vnpay-callback", async (req, res) => {
         }
 
         return res.redirect(
-          `${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=success&bookingId=${bookingId}&method=vnpay`
+          `${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=success&bookingId=${bookingId}&method=vnpay&type=tour`
         );
       } else {
         // Payment failed
@@ -304,7 +304,7 @@ router.get("/momo-callback", async (req, res) => {
         }
 
         return res.redirect(
-          `${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=success&bookingId=${bookingId}&method=momo`
+          `${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=success&bookingId=${bookingId}&method=momo&type=tour`
         );
       } else {
         // Payment failed

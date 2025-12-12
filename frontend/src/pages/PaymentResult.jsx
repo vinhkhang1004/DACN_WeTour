@@ -9,8 +9,11 @@ export default function PaymentResult() {
   const status = params.get("status") || "unknown";
   const method = params.get("method") || "";
   const bookingId = params.get("bookingId");
+  const customTourId = params.get("customTourId");
   const message = params.get("message");
+  const type = params.get("type") || ""; // tour, hotel, flight
   const [booking, setBooking] = useState(null);
+  const [customTour, setCustomTour] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const success = status === "success";
@@ -20,6 +23,20 @@ export default function PaymentResult() {
     localStorage.removeItem("checkout_info");
     localStorage.removeItem("checkout_payment");
     localStorage.removeItem("checkout_promo");
+
+    // Redirect to confirmation page if success and type is specified
+    if (success && bookingId && type) {
+      if (type === "tour") {
+        navigate(`/tour/booking/${bookingId}/confirm`, { replace: true });
+        return;
+      } else if (type === "hotel") {
+        navigate(`/hotel/booking/${bookingId}/confirm`, { replace: true });
+        return;
+      } else if (type === "flight") {
+        navigate(`/flights/booking/${bookingId}/confirm`, { replace: true });
+        return;
+      }
+    }
 
     // Fetch booking details if bookingId is provided
     if (bookingId) {
@@ -36,7 +53,23 @@ export default function PaymentResult() {
           setLoading(false);
         });
     }
-  }, [bookingId]);
+    
+    // Fetch custom tour details if customTourId is provided
+    if (customTourId) {
+      setLoading(true);
+      api
+        .get(`/custom-tours/${customTourId}`)
+        .then((res) => {
+          setCustomTour(res.data);
+        })
+        .catch((err) => {
+          console.error("Error fetching custom tour:", err);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [bookingId, customTourId, success, type, navigate]);
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: 20, textAlign: "center" }}>
@@ -87,6 +120,34 @@ export default function PaymentResult() {
               <strong>Tổng tiền:</strong>{" "}
               <span style={{ color: "#0ea5e9", fontWeight: 700, fontSize: "18px" }}>
                 {Number(booking.total_price).toLocaleString()} ₫
+              </span>
+            </div>
+          </>
+        )}
+        
+        {customTour && (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <strong>Mã tour:</strong> #{customTour.id}
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <strong>Điểm đến:</strong> {customTour.destination}
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <strong>Trạng thái:</strong>{" "}
+              <span style={{
+                color: customTour.status === "paid" ? "#16a34a" : "#64748b",
+                fontWeight: 600
+              }}>
+                {customTour.status === "paid" ? "Đã thanh toán" : 
+                 customTour.status === "approved" ? "Đã xác nhận" : 
+                 customTour.status === "completed" ? "Hoàn thành" : customTour.status}
+              </span>
+            </div>
+            <div>
+              <strong>Tổng tiền:</strong>{" "}
+              <span style={{ color: "#0ea5e9", fontWeight: 700, fontSize: "18px" }}>
+                {Number(customTour.estimated_cost).toLocaleString()} ₫
               </span>
             </div>
           </>

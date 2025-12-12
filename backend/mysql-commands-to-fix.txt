@@ -1,0 +1,60 @@
+========================================
+CÁC LỆNH SQL ĐỂ SỬA LỖI MARIADB
+========================================
+
+Sau khi vào được MySQL prompt (mysql>), copy và paste từng lệnh sau:
+
+----------------------------------------
+BƯỚC 1: Flush privileges
+----------------------------------------
+FLUSH PRIVILEGES;
+
+----------------------------------------
+BƯỚC 2: Xóa các user root cũ có vấn đề
+----------------------------------------
+DELETE FROM mysql.user WHERE User='root' AND Host='localhost';
+DELETE FROM mysql.user WHERE User='root' AND Host='127.0.0.1';
+
+----------------------------------------
+BƯỚC 3: Tạo lại user root
+----------------------------------------
+CREATE USER 'root'@'localhost' IDENTIFIED BY '';
+CREATE USER 'root'@'127.0.0.1' IDENTIFIED BY '';
+
+----------------------------------------
+BƯỚC 4: Cấp quyền đầy đủ
+----------------------------------------
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'127.0.0.1' WITH GRANT OPTION;
+
+----------------------------------------
+BƯỚC 5: Áp dụng thay đổi
+----------------------------------------
+FLUSH PRIVILEGES;
+
+----------------------------------------
+BƯỚC 6: Kiểm tra kết quả
+----------------------------------------
+SELECT User, Host FROM mysql.user WHERE User = 'root';
+
+Bạn sẽ thấy:
++------+-----------+
+| User | Host      |
++------+-----------+
+| root | localhost |
+| root | 127.0.0.1 |
++------+-----------+
+
+----------------------------------------
+BƯỚC 7: Thoát
+----------------------------------------
+exit;
+
+========================================
+LƯU Ý:
+========================================
+- Sau khi chạy xong, khởi động lại MySQL service trong XAMPP
+- Sau đó thử kết nối lại: mysql -u root -h 127.0.0.1 -p
+
+
+

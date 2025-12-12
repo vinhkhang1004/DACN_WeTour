@@ -1,9 +1,10 @@
 import express from "express";
-import { Tour, Booking, User, Notification } from "../models/index.js";
+import { Tour, Booking, User, Notification, Category } from "../models/index.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 import { isAdmin } from "../middleware/adminMiddleware.js";
 import { sendTourCompletionEmail } from "../utils/emailService.js";
 import { sequelize, Op } from "../config/db.js";
+import { normalizeSearchTerm, matchesSearch } from "../utils/vietnameseUtils.js";
 
 const router = express.Router();
 
@@ -15,13 +16,6 @@ router.get("/tours", verifyToken, async (req, res) => {
     const { search, sort, order, page, limit } = req.query;
     
     const where = {};
-    if (search) {
-      where[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { destination: { [Op.like]: `%${search}%` } }
-      ];
-    }
-    
     const orderBy = [];
     if (sort) {
       orderBy.push([sort, order === "asc" ? "ASC" : "DESC"]);
@@ -31,7 +25,8 @@ router.get("/tours", verifyToken, async (req, res) => {
     
     const options = {
       where,
-      order: orderBy
+      order: orderBy,
+      include: [{ model: Category, through: { attributes: [] } }]
     };
     
     if (limit) {
@@ -41,7 +36,19 @@ router.get("/tours", verifyToken, async (req, res) => {
       }
     }
     
-    const tours = await Tour.findAll(options);
+    let tours = await Tour.findAll(options);
+    
+    // Filter bằng cách bỏ dấu nếu có search term
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      tours = tours.filter(tour => {
+        const nameMatch = matchesSearch(tour.name, searchTerm) || 
+                          tour.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const destMatch = matchesSearch(tour.destination, searchTerm) || 
+                         tour.destination.toLowerCase().includes(searchTerm.toLowerCase());
+        return nameMatch || destMatch;
+      });
+    }
     
     // Tính thống kê cho mỗi tour
     const toursWithStats = await Promise.all(
@@ -70,7 +77,18 @@ router.get("/tours", verifyToken, async (req, res) => {
 router.post("/tours", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "admin") return res.status(403).json({ message: "Không có quyền" });
-    const tour = await Tour.create(req.body);
+    
+    const { category_ids, ...tourData } = req.body;
+    const tour = await Tour.create(tourData);
+    
+    // Add categories if provided
+    if (category_ids && Array.isArray(category_ids) && category_ids.length > 0) {
+      await tour.setCategories(category_ids);
+    }
+    
+    // Reload with categories
+    await tour.reload({ include: [{ model: Category }] });
+    
     res.json(tour);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -84,9 +102,25 @@ router.put("/tours/:id", verifyToken, async (req, res) => {
     const tour = await Tour.findByPk(req.params.id);
     if (!tour) return res.status(404).json({ message: "Không tìm thấy tour" });
     
-    console.log('Updating tour with data:', req.body);
-    await tour.update(req.body);
+    const { category_ids, ...tourData } = req.body;
+    console.log('Updating tour with data:', tourData);
+    console.log('Category IDs:', category_ids);
+    
+    await tour.update(tourData);
+    
+    // Update categories if provided
+    if (category_ids !== undefined) {
+      if (Array.isArray(category_ids) && category_ids.length > 0) {
+        await tour.setCategories(category_ids);
+      } else {
+        await tour.setCategories([]);
+      }
+    }
+    
     console.log('Tour updated successfully');
+    
+    // Reload with categories
+    await tour.reload({ include: [{ model: Category }] });
     
     res.json({ message: "Cập nhật thành công", tour });
   } catch (err) {
@@ -183,16 +217,31 @@ router.put("/bookings/status/:id", verifyToken, async (req, res) => {
       console.error("Error creating status change notification:", notifError);
     }
 
-    // Send tour completion email if status changed to "completed"
-    if (oldStatus !== "completed" && req.body.status === "completed") {
+    // Send email when status changes
+    if (oldStatus !== req.body.status) {
       try {
-        if (booking.User && booking.Tour) {
-          await sendTourCompletionEmail(booking.User, booking, booking.Tour);
+        // Determine recipient
+        const recipient = booking.User || {
+          name: booking.guest_name,
+          email: booking.guest_email
+        };
+
+        if (recipient && recipient.email && booking.Tour) {
+          if (req.body.status === "paid" || req.body.status === "confirmed") {
+            // Send admin confirmation email
+            const { sendTourAdminConfirmationEmail } = await import("../utils/emailService.js");
+            await sendTourAdminConfirmationEmail(recipient, booking, booking.Tour);
+            console.log(`✅ Admin confirmation email sent to ${recipient.email} for booking #${booking.id}`);
+          } else if (req.body.status === "completed") {
+            // Send completion email
+            await sendTourCompletionEmail(recipient, booking, booking.Tour);
+            console.log(`✅ Completion email sent to ${recipient.email} for booking #${booking.id}`);
+          }
         } else {
-          console.warn("⚠️ Cannot send completion email: user or tour missing");
+          console.warn(`⚠️ Cannot send email: recipient or tour missing for booking #${booking.id}`);
         }
       } catch (emailError) {
-        console.error("Error sending completion email:", emailError);
+        console.error("Error sending status change email:", emailError);
         // Continue even if email fails
       }
     }
@@ -203,5 +252,52 @@ router.put("/bookings/status/:id", verifyToken, async (req, res) => {
   }
 });
 
+
+// ✅ Categories Management
+// Get all categories
+router.get("/categories", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") return res.status(403).json({ message: "Không có quyền" });
+    const categories = await Category.findAll({ order: [["name", "ASC"]] });
+    res.json(categories);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Create category
+router.post("/categories", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") return res.status(403).json({ message: "Không có quyền" });
+    const category = await Category.create(req.body);
+    res.json(category);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Update category
+router.put("/categories/:id", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") return res.status(403).json({ message: "Không có quyền" });
+    const category = await Category.findByPk(req.params.id);
+    if (!category) return res.status(404).json({ message: "Không tìm thấy danh mục" });
+    await category.update(req.body);
+    res.json({ message: "Cập nhật thành công", category });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Delete category
+router.delete("/categories/:id", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") return res.status(403).json({ message: "Không có quyền" });
+    await Category.destroy({ where: { id: req.params.id } });
+    res.json({ message: "Đã xóa danh mục" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 export default router;
