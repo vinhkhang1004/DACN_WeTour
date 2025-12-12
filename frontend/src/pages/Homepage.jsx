@@ -38,6 +38,8 @@ export default function Homepage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log("Fetching data from API...");
+        console.log("API Base URL:", import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api");
         const [toursRes, statsRes, promotionsRes] = await Promise.all([
           api.get("/tours"),
           api.get("/stats/public"),
@@ -46,6 +48,7 @@ export default function Homepage() {
         ]);
         
         const tours = toursRes.data || [];
+        console.log("Tours received:", tours.length);
         setAllTours(tours);
         setStats(statsRes.data || { totalTours: 0, totalUsers: 0, totalBookings: 0 });
         
@@ -58,6 +61,8 @@ export default function Homepage() {
         setAllPromotions(activePromos);
         
         console.log("Promotions loaded:", activePromos.length, activePromos);
+        console.log("Total tours:", tours.length);
+        console.log("Stats:", statsRes.data);
         
         // Extract all available dates from all tours
         const allDates = new Set();
@@ -490,54 +495,30 @@ export default function Homepage() {
                   Ngày
                 </label>
                 <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
-                  <span style={{ position: "absolute", left: "12px", color: "#9ca3af", fontSize: "20px" }}>
+                  <span style={{ position: "absolute", left: "12px", color: "#9ca3af", fontSize: "20px", zIndex: 1 }}>
                     📅
                   </span>
-                  {availableDates.length > 0 ? (
-                    <select
-                      id="dates"
-                      value={searchDate}
-                      onChange={(e) => setSearchDate(e.target.value)}
-                      style={{
-                        width: "100%",
-                        height: "48px",
-                        paddingLeft: "40px",
-                        paddingRight: "12px",
-                        border: "1px solid #d1d5db",
-                        borderRadius: "8px",
-                        fontSize: "15px",
-                        color: "#1e293b",
-                        background: "#fff",
-                        outline: "none",
-                        cursor: "pointer",
-                        appearance: "none",
-                      }}
-                    >
-                      <option value="">Chọn ngày</option>
-                      {availableDates.map((date, idx) => (
-                        <option key={idx} value={date}>
-                          {new Date(date).toLocaleDateString('vi-VN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      id="dates"
-                      type="date"
-                      value={searchDate}
-                      onChange={(e) => setSearchDate(e.target.value)}
-                      min={new Date().toISOString().split("T")[0]}
-                      style={{
-                        width: "100%",
-                        height: "48px",
-                        paddingLeft: "40px",
-                        border: "1px solid #d1d5db",
-                        borderRadius: "8px",
-                        fontSize: "15px",
-                        outline: "none",
-                      }}
-                    />
-                  )}
+                  <input
+                    id="dates"
+                    type="date"
+                    value={searchDate}
+                    onChange={(e) => setSearchDate(e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
+                    placeholder="Chọn ngày"
+                    style={{
+                      width: "100%",
+                      height: "48px",
+                      paddingLeft: "40px",
+                      paddingRight: "12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "8px",
+                      fontSize: "15px",
+                      color: "#1e293b",
+                      background: "#fff",
+                      outline: "none",
+                      cursor: "pointer",
+                    }}
+                  />
                 </div>
               </div>
 

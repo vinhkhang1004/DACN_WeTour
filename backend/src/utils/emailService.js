@@ -518,6 +518,91 @@ export const sendVerificationEmail = async (email, code) => {
 };
 
 /**
+ * Send password reset email with OTP code
+ */
+export const sendPasswordResetEmail = async (email, code, userName = "") => {
+  const subject = `🔐 Đặt lại mật khẩu WeTour`;
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #0E7490 0%, #0891b2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center; }
+        .content { background: #f8fafc; padding: 30px; border: 1px solid #e5e7eb; }
+        .footer { background: #1e293b; color: white; padding: 20px; border-radius: 0 0 8px 8px; text-align: center; }
+        .otp-box { 
+          background: white; 
+          border: 3px solid #0E7490; 
+          border-radius: 8px; 
+          padding: 20px; 
+          text-align: center; 
+          margin: 20px 0;
+          box-shadow: 0 4px 12px rgba(14, 116, 144, 0.2);
+        }
+        .otp-code { 
+          font-size: 36px; 
+          font-weight: bold; 
+          color: #0E7490; 
+          letter-spacing: 8px; 
+          font-family: 'Courier New', monospace;
+        }
+        .warning { background: #fff7ed; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 20px 0; }
+        .warning p { margin: 0; color: #92400e; }
+        .button { 
+          display: inline-block; 
+          background: #0E7490; 
+          color: white; 
+          padding: 12px 24px; 
+          text-decoration: none; 
+          border-radius: 6px; 
+          margin: 20px 0;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🔐 Đặt lại mật khẩu</h1>
+        </div>
+        <div class="content">
+          <p>Xin chào${userName ? ` ${userName}` : ""},</p>
+          
+          <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản <strong>WeTour</strong> của bạn.</p>
+          
+          <p>Vui lòng sử dụng mã OTP sau để đặt lại mật khẩu:</p>
+          
+          <div class="otp-box">
+            <div class="otp-code">${code}</div>
+          </div>
+          
+          <div class="warning">
+            <p><strong>⚠️ Lưu ý quan trọng:</strong></p>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+              <li>Mã này có hiệu lực trong <strong>10 phút</strong></li>
+              <li>Không chia sẻ mã này với bất kỳ ai</li>
+              <li>WeTour sẽ không bao giờ yêu cầu bạn cung cấp mã OTP</li>
+              <li>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này</li>
+            </ul>
+          </div>
+          
+          <p>Chúc bạn có những trải nghiệm tuyệt vời với WeTour! 🌴</p>
+        </div>
+        <div class="footer">
+          <p>© 2024 WeTour. All rights reserved.</p>
+          <p style="font-size: 12px; opacity: 0.8;">Liên hệ: hotline@wetour.vn | 1900-1234</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return await sendEmailNotification(email, subject, htmlContent);
+};
+
+/**
  * Send hotel booking confirmation email
  */
 export const sendHotelBookingConfirmationEmail = async (user, booking, hotel) => {

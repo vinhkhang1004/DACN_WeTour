@@ -2,8 +2,10 @@ import React, { useState, useEffect, useContext, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
+import { useToast } from "../components/Toast";
 
 export default function UserProfile() {
+  const { showError, showWarning, showSuccess } = useToast();
   const { user, login, updateUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -28,6 +30,7 @@ export default function UserProfile() {
     gender: ""
   });
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [avatarUniqueId, setAvatarUniqueId] = useState(null);
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -65,9 +68,12 @@ export default function UserProfile() {
       // Load avatar if exists
       if (profileRes.data.avatar) {
         setAvatarPreview(profileRes.data.avatar);
+        // Tạo unique ID để tránh cache
+        setAvatarUniqueId(`${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
       } else {
         // Use user initial as default
         setAvatarPreview(null);
+        setAvatarUniqueId(null);
       }
 
       // Fetch notifications
@@ -141,11 +147,11 @@ export default function UserProfile() {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert("Kích thước file không được vượt quá 5MB");
+        showWarning("Kích thước file không được vượt quá 5MB");
         return;
       }
       if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) {
-        alert("Chỉ chấp nhận file PNG hoặc JPG");
+        showWarning("Chỉ chấp nhận file PNG hoặc JPG");
         return;
       }
       
@@ -180,8 +186,15 @@ export default function UserProfile() {
           ctx.drawImage(img, 0, 0, width, height);
 
           // Convert sang base64 với chất lượng 0.8 (compress)
+          // Thêm timestamp để đảm bảo mỗi ảnh có identifier unique, tránh cache
           const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+          // Thêm metadata vào data URL để đảm bảo unique (không ảnh hưởng đến hiển thị)
+          // Sử dụng timestamp và random để tạo unique identifier
+          const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          // Lưu uniqueId vào state để sử dụng sau
           setAvatarPreview(compressedBase64);
+          // Lưu uniqueId vào một state riêng để dùng khi cần
+          setAvatarUniqueId(uniqueId);
         };
         img.src = event.target.result;
       };
@@ -225,6 +238,8 @@ export default function UserProfile() {
       // Update avatarPreview state
       if (finalAvatar) {
         setAvatarPreview(finalAvatar);
+        // Tạo unique ID mới khi avatar được cập nhật
+        setAvatarUniqueId(`${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
       }
       
       // Update localStorage and AuthContext
@@ -249,9 +264,9 @@ export default function UserProfile() {
         window.dispatchEvent(new Event('userUpdated'));
       }, 100);
       
-      alert(response.data.message || "Cập nhật thông tin thành công!");
+      showSuccess(response.data.message || "Cập nhật thông tin thành công!");
     } catch (error) {
-      alert(error.response?.data?.message || "Có lỗi xảy ra");
+      showError(error.response?.data?.message || "Có lỗi xảy ra");
     } finally {
       setSaving(false);
     }
@@ -261,12 +276,12 @@ export default function UserProfile() {
     e.preventDefault();
     
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert("Mật khẩu mới không khớp!");
+      showWarning("Mật khẩu mới không khớp!");
       return;
     }
 
     if (passwordData.newPassword.length < 6) {
-      alert("Mật khẩu mới phải có ít nhất 6 ký tự!");
+      showWarning("Mật khẩu mới phải có ít nhất 6 ký tự!");
       return;
     }
 
@@ -280,14 +295,14 @@ export default function UserProfile() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      alert(response.data.message || "Đổi mật khẩu thành công!");
+      showSuccess(response.data.message || "Đổi mật khẩu thành công!");
       setPasswordData({
         currentPassword: "",
         newPassword: "",
         confirmPassword: ""
       });
     } catch (error) {
-      alert(error.response?.data?.message || "Có lỗi xảy ra");
+      showError(error.response?.data?.message || "Có lỗi xảy ra");
     } finally {
       setSaving(false);
     }
@@ -528,6 +543,7 @@ export default function UserProfile() {
             <div style={{ position: "relative" }}>
               {avatarPreview && avatarPreview.startsWith('data:') ? (
                 <img
+                  key={avatarUniqueId || `avatar-sidebar-${Date.now()}`}
                   src={avatarPreview}
                   alt="Avatar"
                   style={{
@@ -541,7 +557,8 @@ export default function UserProfile() {
                 />
               ) : avatarPreview ? (
                 <img
-                  src={avatarPreview}
+                  key={`avatar-sidebar-url-${avatarUniqueId || Date.now()}`}
+                  src={`${avatarPreview}${avatarPreview.includes('?') ? '&' : '?'}v=${avatarUniqueId || Date.now()}`}
                   alt="Avatar"
                   style={{
                     width: "80px",
@@ -1075,6 +1092,7 @@ export default function UserProfile() {
                       <div style={{ position: "relative" }}>
                         {avatarPreview && avatarPreview.startsWith('data:') ? (
                           <img
+                            key={avatarUniqueId || `avatar-${Date.now()}`}
                             src={avatarPreview}
                             alt="Avatar"
                             style={{
@@ -1087,7 +1105,8 @@ export default function UserProfile() {
                           />
                         ) : avatarPreview ? (
                           <img
-                            src={avatarPreview}
+                            key={`avatar-url-${avatarUniqueId || Date.now()}`}
+                            src={`${avatarPreview}${avatarPreview.includes('?') ? '&' : '?'}v=${avatarUniqueId || Date.now()}`}
                             alt="Avatar"
                             style={{
                               width: "120px",
@@ -1279,6 +1298,7 @@ export default function UserProfile() {
                             dateOfBirth: formData.dateOfBirth || "",
                           });
                           setAvatarPreview(user?.avatar || null);
+                          setAvatarUniqueId(user?.avatar ? `${Date.now()}-${Math.random().toString(36).substring(2, 9)}` : null);
                         }}
                         style={{
                           padding: "12px 24px",

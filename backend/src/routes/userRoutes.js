@@ -2,8 +2,8 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { User, EmailVerification } from "../models/index.js";
-import { sendVerificationEmail } from "../utils/emailService.js";
+import { User, EmailVerification, PasswordReset } from "../models/index.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/emailService.js";
 import { Op } from "sequelize";
 import { OAuth2Client } from 'google-auth-library';
 import { verifyToken } from "../middleware/authMiddleware.js";
@@ -266,6 +266,116 @@ router.put("/change-password", verifyToken, async (req, res) => {
 
     res.json({ message: "Đổi mật khẩu thành công" });
   } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// Forgot password - Send OTP
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: "Vui lòng nhập email" });
+    }
+
+    // Check if user exists
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      // Don't reveal if email exists or not for security
+      return res.json({ 
+        message: "Nếu email tồn tại trong hệ thống, mã OTP đã được gửi đến email của bạn." 
+      });
+    }
+
+    // Generate OTP
+    const code = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Delete old unused codes for this email
+    await PasswordReset.destroy({
+      where: {
+        email,
+        is_used: false,
+        expires_at: { [Op.lt]: new Date() }
+      }
+    });
+
+    // Create new password reset record
+    await PasswordReset.create({
+      email,
+      code,
+      expires_at: expiresAt,
+      is_used: false
+    });
+
+    // Send email
+    const emailResult = await sendPasswordResetEmail(email, code, user.name);
+    
+    if (!emailResult.success) {
+      return res.status(500).json({ message: "Không thể gửi email. Vui lòng thử lại." });
+    }
+
+    res.json({ 
+      message: "Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra inbox.",
+      expires_in: 600 // 10 minutes in seconds
+    });
+  } catch (e) {
+    console.error("Error sending password reset:", e);
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// Reset password - Verify OTP and reset password
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ message: "Vui lòng điền đầy đủ thông tin" });
+    }
+
+    // Validate password length
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "Mật khẩu phải có ít nhất 6 ký tự" });
+    }
+
+    // Find password reset record
+    const resetRecord = await PasswordReset.findOne({
+      where: {
+        email,
+        code,
+        is_used: false,
+        expires_at: { [Op.gt]: new Date() }
+      }
+    });
+
+    if (!resetRecord) {
+      return res.status(400).json({ 
+        message: "Mã OTP không hợp lệ hoặc đã hết hạn. Vui lòng gửi lại mã mới." 
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    // Hash and update password
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await user.update({ password: hashed });
+
+    // Mark reset record as used
+    resetRecord.is_used = true;
+    resetRecord.used_at = new Date();
+    await resetRecord.save();
+
+    res.json({ 
+      message: "Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới." 
+    });
+  } catch (e) {
+    console.error("Error resetting password:", e);
     res.status(500).json({ message: e.message });
   }
 });

@@ -132,9 +132,9 @@ export default function Destinations() {
       {/* Hero Section */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)",
+          background: "linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.5)), url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80') center/cover no-repeat",
           color: "#fff",
-          padding: "80px 20px",
+          padding: "100px 20px 80px",
           textAlign: "center",
           borderRadius: "12px",
           marginBottom: "40px",
@@ -165,10 +165,10 @@ export default function Destinations() {
           }}
         />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <h1 style={{ fontSize: "48px", margin: "0 0 20px", fontWeight: 700 }}>
+          <h1 style={{ fontSize: "48px", margin: "0 0 20px", fontWeight: 700, textShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
             🗺️ Khám phá điểm đến
           </h1>
-          <p style={{ fontSize: "20px", margin: "0 0 30px", opacity: 0.95 }}>
+          <p style={{ fontSize: "20px", margin: "0 0 30px", opacity: 0.95, textShadow: "0 1px 5px rgba(0,0,0,0.2)" }}>
             Tìm hiểu những vùng đất tuyệt vời của Việt Nam
           </p>
           <div style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>

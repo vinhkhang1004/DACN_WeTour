@@ -3,8 +3,10 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import DatePicker from "../components/DatePicker";
+import { useToast } from "../components/Toast";
 
 export default function HotelBooking() {
+  const { showError, showWarning } = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -176,7 +178,7 @@ export default function HotelBooking() {
       }
     } catch (error) {
       console.error("Error fetching hotel:", error);
-      alert("Không tìm thấy khách sạn");
+      showError("Không tìm thấy khách sạn");
       navigate("/hotels");
     } finally {
       setLoading(false);
@@ -263,26 +265,13 @@ export default function HotelBooking() {
     const token = localStorage.getItem("token");
     
     if (!token) {
-      alert("Vui lòng đăng nhập để thanh toán");
+      showWarning("Vui lòng đăng nhập để thanh toán");
       setProcessing(false);
       return;
     }
     
     try {
-      if (method === "vnpay") {
-        const response = await api.post(
-          "/hotels/payment/vnpay/create",
-          { hotel_booking_id: selectedBooking.id },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        
-        if (response.data.paymentUrl) {
-          window.location.href = response.data.paymentUrl;
-        } else {
-          alert("Không thể tạo link thanh toán VNPay");
-          setProcessing(false);
-        }
-      } else if (method === "momo") {
+      if (method === "momo") {
         const response = await api.post(
           "/hotels/payment/momo/create",
           { hotel_booking_id: selectedBooking.id },
@@ -292,7 +281,7 @@ export default function HotelBooking() {
         if (response.data.paymentUrl) {
           window.location.href = response.data.paymentUrl;
         } else {
-          alert("Không thể tạo link thanh toán MoMo");
+          showError("Không thể tạo link thanh toán MoMo");
           setProcessing(false);
         }
       } else if (method === "cash") {
@@ -317,7 +306,7 @@ export default function HotelBooking() {
       }
     } catch (error) {
       console.error("Error processing payment:", error);
-      alert("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
+      showError("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
       setProcessing(false);
     }
   };
@@ -327,12 +316,12 @@ export default function HotelBooking() {
     
     // Kiểm tra đã chọn phòng chưa
     if (!selectedRoomId || !selectedRoom) {
-      alert("Vui lòng chọn loại phòng mà bạn muốn");
+      showWarning("Vui lòng chọn loại phòng mà bạn muốn");
       return;
     }
     
     if (!checkIn || !checkOut) {
-      alert("Vui lòng chọn ngày nhận và trả phòng");
+      showWarning("Vui lòng chọn ngày nhận và trả phòng");
       return;
     }
 
@@ -343,7 +332,7 @@ export default function HotelBooking() {
     const contactPhone = user ? (guestPhone || user.phone || "") : guestPhone;
 
     if (!contactName || !contactEmail || !contactPhone) {
-      alert("Vui lòng cung cấp thông tin liên hệ (tên, email, số điện thoại)");
+      showWarning("Vui lòng cung cấp thông tin liên hệ (tên, email, số điện thoại)");
       return;
     }
 
@@ -406,7 +395,7 @@ export default function HotelBooking() {
       }
     } catch (error) {
       console.error("Error booking hotel:", error);
-      alert("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
+      showError("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
     } finally {
       setSubmitting(false);
     }
@@ -1194,27 +1183,7 @@ export default function HotelBooking() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-              <button
-                onClick={() => processPayment("vnpay")}
-                disabled={processing}
-                style={{
-                  border: "2px solid #0E7490",
-                  borderRadius: 8,
-                  padding: 16,
-                  cursor: processing ? "not-allowed" : "pointer",
-                  background: "#f0f9ff",
-                  textAlign: "center",
-                  transition: "all 0.2s",
-                  opacity: processing ? 0.6 : 1
-                }}
-                onMouseEnter={(e) => !processing && (e.currentTarget.style.background = "#e0f2fe")}
-                onMouseLeave={(e) => !processing && (e.currentTarget.style.background = "#f0f9ff")}
-              >
-                <div style={{ fontSize: 14, fontWeight: 600 }}>VNPay</div>
-                <div style={{ fontSize: 11, color: "#64748b" }}>Thẻ ngân hàng</div>
-              </button>
-              
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
               <button
                 onClick={() => processPayment("momo")}
                 disabled={processing}

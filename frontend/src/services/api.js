@@ -1,8 +1,11 @@
 // src/services/api.js
 import axios from "axios";
 
+// Use environment variable for API URL, fallback to localhost for development
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
 const api = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: API_BASE_URL,
 });
 
 // thêm token tự động
@@ -14,8 +17,16 @@ api.interceptors.request.use((config) => {
 
 // Xử lý lỗi response
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}`, response.status, response.data?.length || 'data');
+    return response;
+  },
   (error) => {
+    console.error(`[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
+      status: error.response?.status,
+      message: error.message,
+      data: error.response?.data
+    });
     if (error.response?.status === 401) {
       // Token không hợp lệ hoặc hết hạn
       const currentPath = window.location.pathname;

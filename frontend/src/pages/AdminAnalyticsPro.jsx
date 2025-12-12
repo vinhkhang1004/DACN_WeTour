@@ -23,6 +23,7 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis
 } from "recharts";
+import * as XLSX from "xlsx";
 import LoadingSpinner from "../components/LoadingSpinner";
 
 export default function AdminAnalyticsPro() {
@@ -194,6 +195,140 @@ export default function AdminAnalyticsPro() {
     return new Intl.NumberFormat('vi-VN').format(num);
   };
 
+  // Function to export data to Excel
+  const exportToExcel = () => {
+    try {
+      const workbook = XLSX.utils.book_new();
+      
+      // 1. Tổng quan (Overview)
+      const overviewSheet = XLSX.utils.json_to_sheet([
+        { "Chỉ số": "Tổng doanh thu", "Giá trị": analyticsData.totalRevenue || 0, "Đơn vị": "VND" },
+        { "Chỉ số": "Tổng người dùng", "Giá trị": analyticsData.totalUsers || 0, "Đơn vị": "người" },
+        { "Chỉ số": "Tổng đặt tour", "Giá trị": analyticsData.totalTourBookings || 0, "Đơn vị": "đơn" },
+        { "Chỉ số": "Tổng tour", "Giá trị": analyticsData.totalTours || 0, "Đơn vị": "tour" },
+        { "Chỉ số": "Doanh thu tour", "Giá trị": analyticsData.tourRevenue || 0, "Đơn vị": "VND" },
+        { "Chỉ số": "Tổng đặt khách sạn", "Giá trị": analyticsData.totalHotelBookings || 0, "Đơn vị": "đơn" },
+        { "Chỉ số": "Doanh thu khách sạn", "Giá trị": analyticsData.hotelRevenue || 0, "Đơn vị": "VND" },
+        { "Chỉ số": "Tổng đặt chuyến bay", "Giá trị": analyticsData.totalFlightBookings || 0, "Đơn vị": "đơn" },
+        { "Chỉ số": "Doanh thu chuyến bay", "Giá trị": analyticsData.flightRevenue || 0, "Đơn vị": "VND" },
+        { "Chỉ số": "Đơn hoàn thành", "Giá trị": analyticsData.completedBookings || 0, "Đơn vị": "đơn" },
+        { "Chỉ số": "Đơn đã thanh toán", "Giá trị": analyticsData.paidBookings || 0, "Đơn vị": "đơn" },
+        { "Chỉ số": "Đơn chờ xác nhận", "Giá trị": analyticsData.pendingBookings || 0, "Đơn vị": "đơn" },
+        { "Chỉ số": "Đơn đã hủy", "Giá trị": analyticsData.cancelledBookings || 0, "Đơn vị": "đơn" }
+      ]);
+      XLSX.utils.book_append_sheet(workbook, overviewSheet, "Tổng quan");
+
+      // 2. Doanh thu theo ngày
+      if (revenueData.length > 0) {
+        const revenueSheet = XLSX.utils.json_to_sheet(
+          revenueData.map(item => ({
+            "Ngày": item.date || "",
+            "Doanh thu": item.revenue || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, revenueSheet, "Doanh thu theo ngày");
+      }
+
+      // 3. Doanh thu theo tháng
+      if (monthlyRevenueData.length > 0) {
+        const monthlySheet = XLSX.utils.json_to_sheet(
+          monthlyRevenueData.map(item => ({
+            "Tháng": item.month || "",
+            "Doanh thu": item.revenue || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, monthlySheet, "Doanh thu theo tháng");
+      }
+
+      // 4. Dữ liệu người dùng
+      if (userData.length > 0) {
+        const userSheet = XLSX.utils.json_to_sheet(
+          userData.map(item => ({
+            "Ngày": item.date || "",
+            "Tổng người dùng": item.totalUsers || 0,
+            "Người dùng mới": item.newUsers || 0,
+            "Người dùng hoạt động": item.activeUsers || 0,
+            "Người dùng không hoạt động": item.inactiveUsers || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, userSheet, "Người dùng");
+      }
+
+      // 5. Dữ liệu đặt tour
+      if (bookingData.length > 0) {
+        const bookingSheet = XLSX.utils.json_to_sheet(
+          bookingData.map(item => ({
+            "Ngày": item.date || "",
+            "Số lượng đặt tour": item.bookings || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, bookingSheet, "Đặt tour");
+      }
+
+      // 6. Top tour
+      if (tourData.length > 0) {
+        const tourSheet = XLSX.utils.json_to_sheet(
+          tourData.map(item => ({
+            "Tên tour": item.name || "",
+            "Số lượt đặt": item.bookings || 0,
+            "Doanh thu": item.revenue || 0,
+            "Lượt xem": item.views || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, tourSheet, "Top Tour");
+      }
+
+      // 7. Dữ liệu địa lý
+      if (geographicData.length > 0) {
+        const geoSheet = XLSX.utils.json_to_sheet(
+          geographicData.map(item => ({
+            "Điểm đến": item.region || "",
+            "Doanh thu": item.revenue || 0,
+            "Số lượt đặt": item.bookings || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, geoSheet, "Doanh thu theo địa điểm");
+      }
+
+      // 8. Dữ liệu khách sạn
+      if (hotelBookingData.length > 0) {
+        const hotelSheet = XLSX.utils.json_to_sheet(
+          hotelBookingData.map(item => ({
+            "Ngày": item.date || "",
+            "Số lượng đặt": item.bookings || 0,
+            "Doanh thu": item.revenue || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, hotelSheet, "Đặt khách sạn");
+      }
+
+      // 9. Dữ liệu chuyến bay
+      if (flightBookingData.length > 0) {
+        const flightSheet = XLSX.utils.json_to_sheet(
+          flightBookingData.map(item => ({
+            "Ngày": item.date || "",
+            "Số lượng đặt": item.bookings || 0,
+            "Doanh thu": item.revenue || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, flightSheet, "Đặt chuyến bay");
+      }
+
+      // Generate filename with current date
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const filename = `Bao_Cao_Phan_Tich_${dateStr}.xlsx`;
+
+      // Write file
+      XLSX.writeFile(workbook, filename);
+      
+      alert(`✅ Đã xuất file Excel thành công: ${filename}`);
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      alert("❌ Có lỗi xảy ra khi xuất file Excel: " + error.message);
+    }
+  };
+
   const tabs = [
     { id: "overview", name: "Tổng quan", icon: "📊" },
     { id: "revenue", name: "Doanh thu", icon: "💰" },
@@ -235,6 +370,12 @@ export default function AdminAnalyticsPro() {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 🔄 Làm mới
+              </button>
+              <button
+                onClick={exportToExcel}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+              >
+                📊 Xuất Excel
               </button>
             </div>
           </div>

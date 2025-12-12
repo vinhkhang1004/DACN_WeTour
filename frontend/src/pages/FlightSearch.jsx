@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
+import { useToast } from "../components/Toast";
 
 export default function FlightSearch() {
+  const { showError } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -102,12 +104,20 @@ export default function FlightSearch() {
       
       const flightsData = response.data.flights || [];
       const totalCount = response.data.total || flightsData.length;
+      const hasExactMatch = response.data.hasExactMatch !== false; // Default true if not provided
       
       console.log("Setting flights:", flightsData);
       console.log("Setting total:", totalCount);
+      console.log("Has exact match:", hasExactMatch);
       
       setFlights(flightsData);
       setTotal(totalCount);
+      
+      // Lưu thông tin về exact match để hiển thị gợi ý
+      if (departureDate && !hasExactMatch && flightsData.length > 0) {
+        // Có chuyến bay nhưng không khớp chính xác ngày
+        console.log("Showing suggestions for nearby dates");
+      }
 
       // Extract unique airlines
       const airlines = [...new Set(flightsData.map(f => f.airline))];
@@ -124,13 +134,13 @@ export default function FlightSearch() {
       
       // Show more detailed error message
       if (error.response?.status === 500) {
-        alert("Lỗi server khi tìm kiếm chuyến bay. Vui lòng thử lại sau.");
+        showError("Lỗi server khi tìm kiếm chuyến bay. Vui lòng thử lại sau.");
       } else if (error.response?.status === 404) {
-        alert("Không tìm thấy API. Vui lòng kiểm tra kết nối server.");
+        showError("Không tìm thấy API. Vui lòng kiểm tra kết nối server.");
       } else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-        alert("Không thể kết nối đến server. Vui lòng kiểm tra backend server có đang chạy không.");
+        showError("Không thể kết nối đến server. Vui lòng kiểm tra backend server có đang chạy không.");
       } else {
-        alert("Có lỗi xảy ra khi tìm kiếm chuyến bay: " + (error.response?.data?.message || error.message));
+        showError("Có lỗi xảy ra khi tìm kiếm chuyến bay: " + (error.response?.data?.message || error.message));
       }
     } finally {
       setLoading(false);
@@ -157,9 +167,10 @@ export default function FlightSearch() {
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
       {/* Hero Section */}
       <div style={{ 
-        background: "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)", 
+        background: "url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1920&q=80') center/cover no-repeat",
         padding: "60px 20px 40px",
-        color: "#fff"
+        color: "#fff",
+        position: "relative"
       }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <h1 style={{ fontSize: "36px", fontWeight: 700, marginBottom: "12px", color: "#fff" }}>
@@ -508,7 +519,9 @@ export default function FlightSearch() {
                     : "Vui lòng nhập thông tin tìm kiếm"}
                 </div>
                 <div style={{ fontSize: "14px", color: "#64748b" }}>
-                  {origin || destination || departureDate
+                  {departureDate && flights.length === 0
+                    ? `Không có chuyến bay vào ngày ${new Date(departureDate).toLocaleDateString('vi-VN')} và không tìm thấy chuyến bay nào gần ngày này. Hãy thử chọn ngày khác.`
+                    : origin || destination || departureDate
                     ? "Hãy thử thay đổi điều kiện tìm kiếm hoặc chọn ngày khác"
                     : "Nhập điểm đi, điểm đến và ngày đi để tìm chuyến bay"}
                 </div>

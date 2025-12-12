@@ -70,9 +70,14 @@ router.get("/", async (req, res) => {
     }
 
     if (departure_date) {
-      const startDate = new Date(departure_date);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(departure_date);
+      const departureDate = new Date(departure_date);
+      departureDate.setHours(0, 0, 0, 0);
+      // Tìm chuyến bay trong vòng ±7 ngày từ ngày đã chọn
+      const dateRange = 7; // 7 ngày
+      const startDate = new Date(departureDate);
+      startDate.setDate(startDate.getDate() - dateRange);
+      const endDate = new Date(departureDate);
+      endDate.setDate(endDate.getDate() + dateRange);
       endDate.setHours(23, 59, 59, 999);
       
       conditions.push({
@@ -132,9 +137,15 @@ router.get("/", async (req, res) => {
       };
     }
 
-    // Order by
+    // Order by - nếu có departure_date, ưu tiên sắp xếp theo khoảng cách ngày gần nhất
     let order = [];
-    if (sort_by === "price") {
+    if (departure_date) {
+      // Ưu tiên sắp xếp theo khoảng cách ngày gần nhất với ngày đã chọn
+      const departureDate = new Date(departure_date);
+      departureDate.setHours(0, 0, 0, 0);
+      // Sắp xếp theo departure_date gần nhất với ngày đã chọn
+      order = [["departure_date", "ASC"]];
+    } else if (sort_by === "price") {
       order = [[priceField, "ASC"]];
     } else if (sort_by === "duration") {
       order = [["duration", "ASC"]];
@@ -148,18 +159,32 @@ router.get("/", async (req, res) => {
     console.log("Flight search query:", JSON.stringify(where, null, 2));
     
     try {
-      const flights = await Flight.findAll({
+      let flights = await Flight.findAll({
         where,
         order,
         limit: 100 // Tăng limit để hiển thị nhiều hơn
       });
+
+      // Nếu có departure_date, sắp xếp lại theo khoảng cách ngày gần nhất
+      if (departure_date && flights.length > 0) {
+        const departureDate = new Date(departure_date);
+        departureDate.setHours(0, 0, 0, 0);
+        
+        flights = flights.map(flight => {
+          const flightDate = new Date(flight.departure_date);
+          flightDate.setHours(0, 0, 0, 0);
+          const daysDiff = Math.abs((flightDate - departureDate) / (1000 * 60 * 60 * 24));
+          return { ...flight.toJSON(), daysDiff };
+        }).sort((a, b) => a.daysDiff - b.daysDiff);
+      }
 
       console.log(`Found ${flights.length} flights`);
       
       // Return flights even if empty array
       res.json({ 
         flights: flights || [], 
-        total: flights ? flights.length : 0 
+        total: flights ? flights.length : 0,
+        hasExactMatch: departure_date ? flights.some(f => f.daysDiff === 0) : true
       });
     } catch (dbError) {
       console.error("Database error in flight search:", dbError);

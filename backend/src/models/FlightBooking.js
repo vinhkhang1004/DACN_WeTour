@@ -106,3 +106,4 @@ export const FlightBooking = sequelize.define("FlightBooking", {
 
 
 
+

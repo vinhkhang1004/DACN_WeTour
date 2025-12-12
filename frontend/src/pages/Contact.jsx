@@ -32,18 +32,21 @@ export default function Contact() {
       {/* Hero Section */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)",
+          background: "linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.5)), url('https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=1920&q=80') center/cover no-repeat",
+          backgroundColor: "#0E7490", // Fallback color nếu ảnh không load
           color: "#fff",
-          padding: "80px 20px",
+          padding: "100px 20px 80px",
           textAlign: "center",
           borderRadius: "12px",
           marginBottom: "60px",
+          position: "relative",
+          minHeight: "300px"
         }}
       >
-        <h1 style={{ fontSize: "48px", margin: "0 0 20px", fontWeight: 700 }}>
+        <h1 style={{ fontSize: "48px", margin: "0 0 20px", fontWeight: 700, textShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
           Liên hệ với chúng tôi
         </h1>
-        <p style={{ fontSize: "20px", margin: 0, opacity: 0.95 }}>
+        <p style={{ fontSize: "20px", margin: 0, opacity: 0.95, textShadow: "0 1px 5px rgba(0,0,0,0.2)" }}>
           Chúng tôi luôn sẵn sàng lắng nghe và hỗ trợ bạn
         </p>
       </div>
@@ -253,7 +256,7 @@ export default function Contact() {
                     Địa chỉ
                   </div>
                   <div style={{ color: "#64748b" }}>
-                    123 Đường ABC, Quận 1<br />
+                    123 Đường Hai Bà Trưng, Quận 1<br />
                     TP. Hồ Chí Minh, Việt Nam
                   </div>
                 </div>
@@ -279,8 +282,8 @@ export default function Contact() {
                     Điện thoại
                   </div>
                   <div style={{ color: "#64748b" }}>
-                    Hotline: 1900-xxxx<br />
-                    Mobile: 090-xxx-xxxx
+                    Hotline: 1900-66776677<br />
+                    Mobile: 090-845-1432
                   </div>
                 </div>
               </div>

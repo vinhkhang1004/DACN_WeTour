@@ -2,8 +2,10 @@ import React, { useState, useEffect, useContext } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
+import { useToast } from "../components/Toast";
 
 export default function FlightBooking() {
+  const { showError, showWarning, showSuccess } = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -135,7 +137,7 @@ export default function FlightBooking() {
       }
     } catch (error) {
       console.error("Error fetching flight:", error);
-      alert("Không tìm thấy chuyến bay");
+      showError("Không tìm thấy chuyến bay");
       navigate("/flights");
     } finally {
       setLoading(false);
@@ -266,13 +268,13 @@ export default function FlightBooking() {
     for (let i = 0; i < passengers.length; i++) {
       const p = passengers[i];
       if (!p.last_name || !p.first_name || !p.date_of_birth) {
-        alert(`Vui lòng điền đầy đủ thông tin cho hành khách ${i + 1}`);
+        showWarning(`Vui lòng điền đầy đủ thông tin cho hành khách ${i + 1}`);
         return;
       }
     }
 
     if (!contactEmail || !contactPhone) {
-      alert("Vui lòng điền đầy đủ thông tin liên hệ");
+      showWarning("Vui lòng điền đầy đủ thông tin liên hệ");
       return;
     }
 
@@ -308,7 +310,7 @@ export default function FlightBooking() {
       setCurrentStep(2);
     } catch (error) {
       console.error("Error booking flight:", error);
-      alert(error.response?.data?.message || "Có lỗi xảy ra khi đặt vé");
+      showError(error.response?.data?.message || "Có lỗi xảy ra khi đặt vé");
     } finally {
       setSubmitting(false);
     }
@@ -379,12 +381,12 @@ export default function FlightBooking() {
         setBooking(response.data.booking);
         setCurrentStep(3); // Move to confirmation step
       } else {
-        alert("Đặt vé thành công!");
+        showSuccess("Đặt vé thành công!");
         navigate("/flights");
       }
     } catch (error) {
       console.error("Error booking flight:", error);
-      alert(error.response?.data?.message || "Có lỗi xảy ra khi đặt vé");
+      showError(error.response?.data?.message || "Có lỗi xảy ra khi đặt vé");
     } finally {
       setSubmitting(false);
     }
@@ -397,7 +399,7 @@ export default function FlightBooking() {
     const token = localStorage.getItem("token");
     
     if (!token) {
-      alert("Vui lòng đăng nhập để thanh toán");
+      showWarning("Vui lòng đăng nhập để thanh toán");
       setProcessing(false);
       return;
     }
@@ -413,7 +415,7 @@ export default function FlightBooking() {
         if (response.data.paymentUrl) {
           window.location.href = response.data.paymentUrl;
         } else {
-          alert("Không thể tạo link thanh toán VNPay");
+          showError("Không thể tạo link thanh toán VNPay");
           setProcessing(false);
         }
       } else if (method === "momo") {
@@ -426,7 +428,7 @@ export default function FlightBooking() {
         if (response.data.paymentUrl) {
           window.location.href = response.data.paymentUrl;
         } else {
-          alert("Không thể tạo link thanh toán MoMo");
+          showError("Không thể tạo link thanh toán MoMo");
           setProcessing(false);
         }
       } else if (method === "cash") {
@@ -447,7 +449,7 @@ export default function FlightBooking() {
       }
     } catch (error) {
       console.error("Error processing payment:", error);
-      alert("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
+      showError("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
       setProcessing(false);
     }
   };
@@ -542,13 +544,13 @@ export default function FlightBooking() {
       } else {
         // Check if seat is occupied
         if (occupiedReturnSeats.includes(seatNumber)) {
-          alert("Ghế này đã được chọn bởi hành khách khác");
+          showWarning("Ghế này đã được chọn bởi hành khách khác");
           return;
         }
         // Check if another passenger already selected this seat
         const existingPassenger = Object.keys(newSeats).find(idx => newSeats[idx] === seatNumber);
         if (existingPassenger) {
-          alert("Ghế này đã được chọn bởi hành khách khác trong đơn của bạn");
+          showWarning("Ghế này đã được chọn bởi hành khách khác trong đơn của bạn");
           return;
         }
         
@@ -575,13 +577,13 @@ export default function FlightBooking() {
       } else {
         // Check if seat is occupied
         if (occupiedSeats.includes(seatNumber)) {
-          alert("Ghế này đã được chọn bởi hành khách khác");
+          showWarning("Ghế này đã được chọn bởi hành khách khác");
           return;
         }
         // Check if another passenger already selected this seat
         const existingPassenger = Object.keys(newSeats).find(idx => newSeats[idx] === seatNumber);
         if (existingPassenger) {
-          alert("Ghế này đã được chọn bởi hành khách khác trong đơn của bạn");
+          showWarning("Ghế này đã được chọn bởi hành khách khác trong đơn của bạn");
           return;
         }
         

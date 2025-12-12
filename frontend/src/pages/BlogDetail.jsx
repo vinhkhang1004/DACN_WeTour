@@ -40,6 +40,26 @@ export default function BlogDetail() {
     });
   };
 
+  const shareToFacebook = () => {
+    const url = window.location.href;
+    const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+    window.open(shareUrl, "_blank", "width=600,height=500");
+  };
+
+  const shareToTwitter = () => {
+    const url = encodeURIComponent(window.location.href);
+    const text = encodeURIComponent(post.title);
+    const shareUrl = `https://twitter.com/intent/tweet?url=${url}&text=${text}`;
+    window.open(shareUrl, "_blank", "width=600,height=400");
+  };
+
+  const shareToWhatsApp = () => {
+    const url = encodeURIComponent(window.location.href);
+    const text = encodeURIComponent(`${post.title} - ${window.location.href}`);
+    const shareUrl = `https://wa.me/?text=${text}`;
+    window.open(shareUrl, "_blank");
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: "center", padding: "60px 20px" }}>
@@ -155,13 +175,76 @@ export default function BlogDetail() {
       >
         <h3 style={{ margin: "0 0 16px", color: "#1e293b" }}>Chia sẻ bài viết này</h3>
         <div style={{ display: "flex", justifyContent: "center", gap: "16px" }}>
-          <button style={{ padding: "10px 20px", background: "#1877f2", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}>
+          <button 
+            onClick={shareToFacebook}
+            style={{ 
+              padding: "10px 20px", 
+              background: "#1877f2", 
+              color: "#fff", 
+              border: "none", 
+              borderRadius: "8px", 
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: 600,
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "#166fe5";
+              e.target.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "#1877f2";
+              e.target.style.transform = "translateY(0)";
+            }}
+          >
             Facebook
           </button>
-          <button style={{ padding: "10px 20px", background: "#1da1f2", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}>
+          <button 
+            onClick={shareToTwitter}
+            style={{ 
+              padding: "10px 20px", 
+              background: "#1da1f2", 
+              color: "#fff", 
+              border: "none", 
+              borderRadius: "8px", 
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: 600,
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "#1a91da";
+              e.target.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "#1da1f2";
+              e.target.style.transform = "translateY(0)";
+            }}
+          >
             Twitter
           </button>
-          <button style={{ padding: "10px 20px", background: "#25d366", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}>
+          <button 
+            onClick={shareToWhatsApp}
+            style={{ 
+              padding: "10px 20px", 
+              background: "#25d366", 
+              color: "#fff", 
+              border: "none", 
+              borderRadius: "8px", 
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: 600,
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "#22c55e";
+              e.target.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "#25d366";
+              e.target.style.transform = "translateY(0)";
+            }}
+          >
             WhatsApp
           </button>
         </div>

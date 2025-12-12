@@ -35,6 +35,15 @@ export const HotelBooking = sequelize.define("HotelBooking", {
       key: "id"
     }
   },
+  room_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: "hotel_rooms",
+      key: "id"
+    },
+    comment: "ID của loại phòng được đặt (nếu có)"
+  },
   check_in_date: {
     type: DataTypes.DATEONLY,
     allowNull: false

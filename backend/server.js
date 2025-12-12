@@ -61,7 +61,7 @@ app.use("/api/flights", flightRoutes);
 app.use("/api/custom-tours", customTourRoutes);
 app.use("/api/admin/hotels", adminHotelRoutes);
 app.use("/api/admin/flights", adminFlightRoutes);
-app.use("/api/hotel-payments", hotelPaymentRoutes);
+app.use("/api/hotels/payment", hotelPaymentRoutes); // Mount hotel payment routes under /api/hotels/payment
 app.use("/api/flight-payments", flightPaymentRoutes);
 app.use("/api/custom-tour-payments", customTourPaymentRoutes);
 app.use("/api/hotel-reviews", hotelReviewRoutes);
@@ -76,23 +76,56 @@ app.get("/api/health/db", async (req, res) => {
   }
 });
 
-// DB sync
-const start = async () => {
+// Cron endpoint for Vercel Cron Jobs (serverless)
+// This endpoint will be called by Vercel Cron Jobs instead of using node-cron
+app.get("/api/cron/notifications", async (req, res) => {
+  try {
+    // Import and run the notification logic
+    const { runNotificationJob } = await import("./src/utils/notificationScheduler.js");
+    await runNotificationJob();
+    return res.status(200).json({ ok: true, message: "Notification job completed" });
+  } catch (error) {
+    console.error("Error in cron endpoint:", error);
+    return res.status(500).json({ ok: false, error: String(error?.message || error) });
+  }
+});
+
+// Initialize database connection
+const initDatabase = async () => {
   try {
     await sequelize.authenticate();
     initModels();
     await sequelize.sync(); // for demo; in production use migrations
     console.log("✅ MySQL connected & models synced");
-    
-    // Start notification scheduler
-    startNotificationScheduler();
-    
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => console.log(`🚀 API running on port ${PORT}`));
+    return true;
   } catch (err) {
     console.error("DB error:", err);
-    process.exit(1);
+    return false;
   }
 };
 
-start();
+// DB sync and server startup
+const start = async () => {
+  const dbConnected = await initDatabase();
+  if (!dbConnected) {
+    process.exit(1);
+  }
+  
+  // Only start cron scheduler in traditional server mode (not serverless)
+  // In Vercel, cron jobs are handled via /api/cron/notifications endpoint
+  if (process.env.VERCEL !== "1") {
+    startNotificationScheduler();
+  }
+  
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`🚀 API running on port ${PORT}`));
+};
+
+// Only start server if not running as Vercel serverless function
+// Vercel will import this file and use the app export
+if (process.env.VERCEL !== "1") {
+  start();
+}
+
+// Export app for Vercel serverless functions
+export default app;

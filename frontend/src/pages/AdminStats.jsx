@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import * as XLSX from "xlsx";
 
 export default function AdminStats() {
   const [stats, setStats] = useState({
@@ -64,6 +65,58 @@ export default function AdminStats() {
     yearOptions.push(i);
   }
 
+  // Function to export data to Excel
+  const exportToExcel = () => {
+    try {
+      const workbook = XLSX.utils.book_new();
+      
+      // 1. Tổng quan
+      const overviewSheet = XLSX.utils.json_to_sheet([
+        { "Chỉ số": "Tổng tour", "Giá trị": stats.totalTours, "Đơn vị": "tour" },
+        { "Chỉ số": "Lượt đặt tour", "Giá trị": stats.totalBookings, "Đơn vị": "đơn" },
+        { "Chỉ số": "Tổng doanh thu", "Giá trị": stats.totalRevenue, "Đơn vị": "VND" }
+      ]);
+      XLSX.utils.book_append_sheet(workbook, overviewSheet, "Tổng quan");
+
+      // 2. Doanh thu theo tháng
+      if (monthlyRevenue.length > 0) {
+        const monthlySheet = XLSX.utils.json_to_sheet(
+          monthlyRevenue.map(item => ({
+            "Tháng": item.month || "",
+            "Doanh thu": item.revenue || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, monthlySheet, "Doanh thu theo tháng");
+      }
+
+      // 3. Top tour
+      if (topTours.length > 0) {
+        const topToursSheet = XLSX.utils.json_to_sheet(
+          topTours.map((tour, index) => ({
+            "Hạng": index + 1,
+            "Tên tour": tour.name || "",
+            "Số lượt đặt": tour.bookings || 0,
+            "Tổng doanh thu": tour.revenue || 0
+          }))
+        );
+        XLSX.utils.book_append_sheet(workbook, topToursSheet, "Top Tour");
+      }
+
+      // Generate filename with current date
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const filename = `Bao_Cao_Thong_Ke_${year}${month ? `_Thang${month}` : ''}_${dateStr}.xlsx`;
+
+      // Write file
+      XLSX.writeFile(workbook, filename);
+      
+      alert(`✅ Đã xuất file Excel thành công: ${filename}`);
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      alert("❌ Có lỗi xảy ra khi xuất file Excel: " + error.message);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 1100, margin: "auto", padding: 20 }}>
       <h2 style={{ marginBottom: 25 }}>📊 Thống kê doanh thu & hoạt động</h2>
@@ -111,6 +164,20 @@ export default function AdminStats() {
           }}
         >
           🔄 Làm mới
+        </button>
+        <button
+          onClick={exportToExcel}
+          style={{
+            padding: "4px 10px",
+            border: "1px solid #10b981",
+            borderRadius: 4,
+            background: "#10b981",
+            color: "#fff",
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+        >
+          📊 Xuất Excel
         </button>
       </div>
 

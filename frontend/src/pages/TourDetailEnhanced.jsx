@@ -4,8 +4,10 @@ import { Helmet } from "react-helmet-async";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import TourMap from "../components/TourMap";
+import { useToast } from "../components/Toast";
 
 export default function TourDetailEnhanced() {
+  const { showError } = useToast();
   const { id } = useParams();
   const [tour, setTour] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -352,13 +354,13 @@ export default function TourDetailEnhanced() {
         });
       } else {
         setPromotion(null);
-        alert(response.data.message || "Mã khuyến mãi không hợp lệ");
+        showError(response.data.message || "Mã khuyến mãi không hợp lệ");
       }
     } catch (error) {
       setPromotion(null);
       // Don't show alert for 401 - token issue
       if (error.response?.status !== 401) {
-        alert(error.response?.data?.message || "Mã khuyến mãi không hợp lệ");
+        showError(error.response?.data?.message || "Mã khuyến mãi không hợp lệ");
       }
     } finally {
       setCheckingPromotion(false);

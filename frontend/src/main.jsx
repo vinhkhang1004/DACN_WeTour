@@ -12,7 +12,9 @@ const Homepage = lazy(() => import("./pages/Homepage.jsx"));
 const TourList = lazy(() => import("./pages/TourListEnhanced.jsx"));
 const Login = lazy(() => import("./pages/Login.jsx"));
 const Register = lazy(() => import("./pages/Register.jsx"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword.jsx"));
 import { AuthProvider } from "./context/AuthContext.jsx";
+import { ToastProvider } from "./components/Toast.jsx";
 const TourDetail = lazy(() => import("./pages/TourDetailEnhanced.jsx"));
 const BookingHistory = lazy(() => import("./pages/BookingHistory.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboardEnhanced.jsx"));
@@ -74,8 +76,9 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_C
 createRoot(document.getElementById("root")).render(
   <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
     <AuthProvider>
-      <HelmetProvider>
-        <BrowserRouter>
+      <ToastProvider>
+        <HelmetProvider>
+          <BrowserRouter>
           <Suspense fallback={<div style={{padding:20}}>Đang tải...</div>}>
             <Routes>
             <Route path="/" element={<App />}>
@@ -86,6 +89,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="compare" element={<TourComparison />} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
+          <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="tour/:id" element={<TourDetail />} />
           <Route path="my-bookings" element={<BookingHistory />} />
           <Route path="about" element={<About />} />
@@ -150,6 +154,7 @@ createRoot(document.getElementById("root")).render(
           </Suspense>
         </BrowserRouter>
       </HelmetProvider>
+      </ToastProvider>
     </AuthProvider>
   </GoogleOAuthProvider>
 );

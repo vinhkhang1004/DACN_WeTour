@@ -10,6 +10,7 @@ import { Notification } from "./Notification.js";
 import { Post, Category as PostCategory } from "./Post.js";
 import { Category } from "./Category.js";
 import { EmailVerification } from "./EmailVerification.js";
+import { PasswordReset } from "./PasswordReset.js";
 import { Conversation } from "./Conversation.js";
 import { Message } from "./Message.js";
 import { Activity } from "./Activity.js";
@@ -154,4 +155,4 @@ export const initModels = () => {
   FlightBooking.belongsTo(Promotion, { foreignKey: "promotion_id" });
 };
 
-export { User, Tour, Booking, Payment, Review, Newsletter, Promotion, PromotionUsage, LoyaltyTransaction, Notification, Post, Category, PostCategory, EmailVerification, Conversation, Message, Activity, CustomTour, CustomTourActivity, Hotel, HotelBooking, HotelRoom, HotelReview, Flight, FlightBooking };
+export { User, Tour, Booking, Payment, Review, Newsletter, Promotion, PromotionUsage, LoyaltyTransaction, Notification, Post, Category, PostCategory, EmailVerification, PasswordReset, Conversation, Message, Activity, CustomTour, CustomTourActivity, Hotel, HotelBooking, HotelRoom, HotelReview, Flight, FlightBooking };

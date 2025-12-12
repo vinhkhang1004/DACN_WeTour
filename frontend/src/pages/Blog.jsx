@@ -64,54 +64,56 @@ export default function Blog() {
   }
 
   return (
-    <div style={{ padding: "40px 20px" }}>
+    <div style={{ padding: "0" }}>
       {/* Hero Section */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)",
+          background: "linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.5)), url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80') center/cover no-repeat",
           color: "#fff",
-          padding: "80px 20px",
+          padding: "100px 20px 80px",
           textAlign: "center",
-          borderRadius: "12px",
-          marginBottom: "60px",
+          position: "relative"
         }}
       >
-        <h1 style={{ fontSize: "48px", margin: "0 0 20px", fontWeight: 700 }}>
-          Blog Du Lịch
-        </h1>
-        <p style={{ fontSize: "20px", margin: "0 0 24px", opacity: 0.95 }}>
-          Chia sẻ kinh nghiệm, mẹo vặt và câu chuyện du lịch thú vị
-        </p>
-        {user && (
-          <Link
-            to="/blog/create"
-            style={{
-              display: "inline-block",
-              padding: "12px 32px",
-              background: "#fff",
-              color: "#0E7490",
-              borderRadius: "8px",
-              textDecoration: "none",
-              fontSize: "16px",
-              fontWeight: 600,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-              transition: "all 0.2s"
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = "translateY(-2px)";
-              e.target.style.boxShadow = "0 6px 16px rgba(0,0,0,0.3)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = "translateY(0)";
-              e.target.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
-            }}
-          >
-            ✍️ Viết blog của bạn
-          </Link>
-        )}
+        <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+          <h1 style={{ fontSize: "48px", margin: "0 0 20px", fontWeight: 700, textShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
+            Blog Du Lịch
+          </h1>
+          <p style={{ fontSize: "20px", margin: "0 0 32px", opacity: 0.95, textShadow: "0 1px 5px rgba(0,0,0,0.2)" }}>
+            Chia sẻ kinh nghiệm, mẹo vặt và câu chuyện du lịch thú vị
+          </p>
+          {user && (
+            <Link
+              to="/blog/create"
+              style={{
+                display: "inline-block",
+                padding: "14px 36px",
+                background: "#fff",
+                color: "#0E7490",
+                borderRadius: "12px",
+                textDecoration: "none",
+                fontSize: "16px",
+                fontWeight: 600,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+                transition: "all 0.2s"
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = "translateY(-2px)";
+                e.target.style.boxShadow = "0 6px 20px rgba(0,0,0,0.4)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = "translateY(0)";
+                e.target.style.boxShadow = "0 4px 16px rgba(0,0,0,0.3)";
+              }}
+            >
+              ✍️ Viết blog của bạn
+            </Link>
+          )}
+        </div>
       </div>
 
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ padding: "40px 20px" }}>
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         {/* Categories Filter */}
         <div
           style={{
@@ -336,6 +338,7 @@ export default function Blog() {
               Đăng ký
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>

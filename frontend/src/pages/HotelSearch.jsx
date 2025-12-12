@@ -213,26 +213,42 @@ export default function HotelSearch() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
-      {/* Search Bar Header */}
+      {/* Hero Section */}
       <div style={{ 
-        background: "#fff", 
-        padding: "40px 20px",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+        background: "linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.5)), url('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1920&q=80') center/cover no-repeat",
+        padding: "80px 20px 60px",
+        color: "#fff",
+        position: "relative"
       }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", gap: "16px", alignItems: "flex-start" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <h1 style={{ fontSize: "36px", fontWeight: 700, marginBottom: "12px", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
+            Tìm khách sạn hoàn hảo cho bạn
+          </h1>
+          <p style={{ fontSize: "18px", marginBottom: "40px", opacity: 0.95, textShadow: "0 1px 5px rgba(0,0,0,0.2)" }}>
+            Khám phá và đặt phòng tại những khách sạn tốt nhất với giá ưu đãi.
+          </p>
+          
+          {/* Search Form */}
+          <div style={{
+            background: "#fff",
+            borderRadius: "16px",
+            padding: "30px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.15)"
+          }}>
+            <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", flexWrap: "wrap" }}>
           {/* Điểm đến */}
-          <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: "1 1 200px", minWidth: "200px", position: "relative", display: "flex", flexDirection: "column" }}>
             <label style={{ 
               display: "block", 
-              fontSize: "12px", 
-              fontWeight: 500, 
-              color: "#64748b", 
-              marginBottom: "6px"
+              fontSize: "13px", 
+              fontWeight: 600, 
+              color: "#1e293b", 
+              marginBottom: "8px"
             }}>
               Điểm đến
             </label>
             <div style={{ position: "relative" }}>
-              <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#7c3aed", fontSize: "20px", zIndex: 1 }}>🔍</span>
+              <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "#0E7490", fontSize: "18px", zIndex: 1 }}>🔍</span>
               <input
                 type="text"
                 placeholder="Nhập điểm đến"
@@ -240,37 +256,37 @@ export default function HotelSearch() {
                 onChange={(e) => setLocation(e.target.value)}
                 style={{
                   width: "100%",
-                  padding: "14px 14px 14px 44px",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "10px",
+                  padding: "14px 14px 14px 46px",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "12px",
                   fontSize: "15px",
                   outline: "none",
                   transition: "all 0.2s",
                   background: "#fff",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                  minHeight: "48px",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                  minHeight: "52px",
                   boxSizing: "border-box"
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = "#0E7490";
-                  e.target.style.boxShadow = "0 4px 8px rgba(14, 116, 144, 0.15)";
+                  e.target.style.boxShadow = "0 4px 12px rgba(14, 116, 144, 0.2)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = "#e5e7eb";
-                  e.target.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
+                  e.target.style.borderColor = "#cbd5e1";
+                  e.target.style.boxShadow = "0 2px 6px rgba(0,0,0,0.08)";
                 }}
               />
             </div>
           </div>
 
           {/* Ngày nhận phòng */}
-          <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: "1 1 200px", minWidth: "200px", position: "relative", display: "flex", flexDirection: "column" }}>
             <label style={{ 
               display: "block", 
-              fontSize: "12px", 
-              fontWeight: 500, 
-              color: "#64748b", 
-              marginBottom: "6px"
+              fontSize: "13px", 
+              fontWeight: 600, 
+              color: "#1e293b", 
+              marginBottom: "8px"
             }}>
               Ngày nhận phòng
             </label>
@@ -283,13 +299,13 @@ export default function HotelSearch() {
               min={today}
               placeholder="dd/mm/yyyy"
               style={{
-                padding: "14px 14px 14px 44px",
-                borderRadius: "10px",
+                padding: "14px 14px 14px 46px",
+                borderRadius: "12px",
                 fontSize: "15px",
-                border: "1px solid #e5e7eb",
+                border: "1px solid #cbd5e1",
                 background: "#fff",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                minHeight: "48px",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                minHeight: "52px",
                 boxSizing: "border-box",
                 margin: 0
               }}
@@ -297,13 +313,13 @@ export default function HotelSearch() {
           </div>
 
           {/* Ngày trả phòng */}
-          <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: "1 1 200px", minWidth: "200px", position: "relative", display: "flex", flexDirection: "column" }}>
             <label style={{ 
               display: "block", 
-              fontSize: "12px", 
-              fontWeight: 500, 
-              color: "#64748b", 
-              marginBottom: "6px"
+              fontSize: "13px", 
+              fontWeight: 600, 
+              color: "#1e293b", 
+              marginBottom: "8px"
             }}>
               Ngày trả phòng
             </label>
@@ -316,13 +332,13 @@ export default function HotelSearch() {
               min={checkIn || today}
               placeholder="dd/mm/yyyy"
               style={{
-                padding: "14px 14px 14px 44px",
-                borderRadius: "10px",
+                padding: "14px 14px 14px 46px",
+                borderRadius: "12px",
                 fontSize: "15px",
-                border: "1px solid #e5e7eb",
+                border: "1px solid #cbd5e1",
                 background: "#fff",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                minHeight: "48px",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                minHeight: "52px",
                 boxSizing: "border-box",
                 margin: 0
               }}
@@ -330,18 +346,18 @@ export default function HotelSearch() {
           </div>
 
           {/* Khách và phòng */}
-          <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: "1 1 200px", minWidth: "200px", position: "relative", display: "flex", flexDirection: "column" }}>
             <label style={{ 
               display: "block", 
-              fontSize: "12px", 
-              fontWeight: 500, 
-              color: "#64748b", 
-              marginBottom: "6px"
+              fontSize: "13px", 
+              fontWeight: 600, 
+              color: "#1e293b", 
+              marginBottom: "8px"
             }}>
               Khách và phòng
             </label>
             <div style={{ position: "relative" }}>
-              <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#7c3aed", fontSize: "20px", zIndex: 1 }}>👤</span>
+              <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "#0E7490", fontSize: "18px", zIndex: 1 }}>👤</span>
               <input
                 type="text"
                 value={(() => {
@@ -359,25 +375,25 @@ export default function HotelSearch() {
                 placeholder="Chọn số phòng và khách"
                 style={{
                   width: "100%",
-                  padding: "14px 14px 14px 44px",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "10px",
-                  fontSize: "14px",
+                  padding: "14px 14px 14px 46px",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "12px",
+                  fontSize: "15px",
                   cursor: "pointer",
                   outline: "none",
                   transition: "all 0.2s",
                   background: "#fff",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                  minHeight: "48px",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                  minHeight: "52px",
                   boxSizing: "border-box"
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = "#0E7490";
-                  e.target.style.boxShadow = "0 4px 8px rgba(14, 116, 144, 0.15)";
+                  e.target.style.boxShadow = "0 4px 12px rgba(14, 116, 144, 0.2)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = "#e5e7eb";
-                  e.target.style.boxShadow = "0 2px 4px rgba(0,0,0,0.05)";
+                  e.target.style.borderColor = "#cbd5e1";
+                  e.target.style.boxShadow = "0 2px 6px rgba(0,0,0,0.08)";
                 }}
               />
             </div>
@@ -652,32 +668,38 @@ export default function HotelSearch() {
           <button
             onClick={handleSearch}
             style={{
-              background: "#14b8a6",
+              background: "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)",
               color: "#fff",
               border: "none",
-              borderRadius: "10px",
-              padding: "14px 36px",
+              borderRadius: "12px",
+              padding: "14px 40px",
               fontSize: "16px",
               fontWeight: 600,
               cursor: "pointer",
               whiteSpace: "nowrap",
               transition: "all 0.2s",
-              boxShadow: "0 4px 8px rgba(20, 184, 166, 0.3)",
-              alignSelf: "flex-end"
+              boxShadow: "0 4px 12px rgba(14, 116, 144, 0.3)",
+              alignSelf: "flex-end",
+              minHeight: "52px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
             }}
             onMouseEnter={(e) => {
-              e.target.style.background = "#0d9488";
-              e.target.style.boxShadow = "0 6px 12px rgba(20, 184, 166, 0.4)";
-              e.target.style.transform = "translateY(-1px)";
+              e.target.style.background = "linear-gradient(135deg, #0d9488 0%, #0E7490 100%)";
+              e.target.style.boxShadow = "0 6px 16px rgba(14, 116, 144, 0.4)";
+              e.target.style.transform = "translateY(-2px)";
             }}
             onMouseLeave={(e) => {
-              e.target.style.background = "#14b8a6";
-              e.target.style.boxShadow = "0 4px 8px rgba(20, 184, 166, 0.3)";
+              e.target.style.background = "linear-gradient(135deg, #0E7490 0%, #0891b2 100%)";
+              e.target.style.boxShadow = "0 4px 12px rgba(14, 116, 144, 0.3)";
               e.target.style.transform = "translateY(0)";
             }}
           >
             Tìm kiếm
           </button>
+            </div>
+          </div>
         </div>
       </div>
 

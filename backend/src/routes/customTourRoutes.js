@@ -27,44 +27,74 @@ router.post("/activities/ai-suggest", async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
-    // Tạo prompt cho AI
-    const prompt = `Bạn là một chuyên gia tư vấn du lịch Việt Nam. Dựa trên thông tin sau, hãy gợi ý các hoạt động du lịch phù hợp:
+    // Parse location từ destination (ví dụ: "Đà Nẵng, Việt Nam" -> "Đà Nẵng")
+    const parseLocation = (dest) => {
+      if (!dest) return dest;
+      const parts = dest.split(",");
+      return parts[0].trim();
+    };
+    
+    const location = parseLocation(destination);
+    
+    // Tạo prompt cho AI - tập trung vào các hoạt động nổi bật nhất
+    const prompt = `Bạn là một chuyên gia tư vấn du lịch Việt Nam với kiến thức sâu rộng về các địa điểm du lịch nổi tiếng. 
 
-Điểm đến: ${destination}
-${tourType ? `Loại hình tour: ${tourType}` : ''}
-${budget ? `Ngân sách: ${budget.toLocaleString()} VNĐ` : ''}
-${adults ? `Số người lớn: ${adults}` : ''}
-${children ? `Số trẻ em: ${children}` : ''}
+NHIỆM VỤ: Gợi ý các hoạt động du lịch NỔI BẬT NHẤT và ĐẶC TRƯNG NHẤT tại ${location}, Việt Nam.
 
-Hãy gợi ý 8-12 hoạt động du lịch phù hợp tại ${destination}, bao gồm:
-- Tham quan (di tích, danh lam thắng cảnh)
-- Ăn uống (đặc sản địa phương)
-- Mua sắm (chợ, trung tâm thương mại)
-- Giải trí (bãi biển, công viên, spa, v.v.)
+THÔNG TIN ĐỊA ĐIỂM:
+- Tỉnh/Thành phố: ${location}
+${tourType ? `- Loại hình tour: ${tourType}` : ''}
+${budget ? `- Ngân sách dự kiến: ${budget.toLocaleString()} VNĐ` : ''}
+${adults ? `- Số người lớn: ${adults}` : ''}
+${children ? `- Số trẻ em: ${children}` : ''}
 
-Mỗi hoạt động cần có:
-- Tên hoạt động (tiếng Việt, ngắn gọn, hấp dẫn)
-- Mô tả ngắn (1-2 câu)
-- Thể loại (một trong: Tham quan, Ăn uống, Mua sắm, Giải trí)
-- Thời lượng ước tính (giờ, ví dụ: 2.0, 3.5)
-- Giá ước tính mỗi người (VNĐ, 0 nếu miễn phí)
-- Image keyword: Từ khóa tiếng Anh để tìm ảnh (ví dụ: "vietnam temple", "vietnamese food", "floating market", "beach vietnam")
+YÊU CẦU:
+Hãy gợi ý 10-15 hoạt động du lịch NỔI TIẾNG NHẤT và ĐẶC TRƯNG NHẤT tại ${location}, bao gồm:
 
-Trả về dưới dạng JSON array với format:
+1. THAM QUAN (4-5 hoạt động):
+   - Các di tích lịch sử, văn hóa nổi tiếng nhất
+   - Danh lam thắng cảnh được nhiều du khách yêu thích
+   - Các điểm check-in "must-visit" tại ${location}
+   - Các công trình kiến trúc độc đáo, đền chùa, bảo tàng nổi tiếng
+
+2. ĂN UỐNG (3-4 hoạt động):
+   - Đặc sản địa phương nổi tiếng nhất của ${location}
+   - Các món ăn đường phố phổ biến
+   - Nhà hàng, quán ăn địa phương được đánh giá cao
+   - Trải nghiệm ẩm thực độc đáo chỉ có tại ${location}
+
+3. MUA SẮM (2-3 hoạt động):
+   - Chợ đêm, chợ truyền thống nổi tiếng
+   - Khu phố mua sắm đặc trưng
+   - Các sản phẩm địa phương, quà lưu niệm đặc trưng
+
+4. GIẢI TRÍ (2-3 hoạt động):
+   - Bãi biển, công viên giải trí nổi tiếng
+   - Hoạt động vui chơi, thể thao đặc trưng của ${location}
+   - Spa, massage, thư giãn
+
+LƯU Ý QUAN TRỌNG:
+- Ưu tiên các hoạt động THỰC SỰ NỔI TIẾNG và được nhiều du khách biết đến tại ${location}
+- Tên hoạt động phải CỤ THỂ và CHÍNH XÁC (ví dụ: "Tham quan Cầu Vàng Bà Nà Hills" thay vì chỉ "Tham quan")
+- Mô tả phải ngắn gọn nhưng hấp dẫn, nêu rõ điểm đặc biệt của hoạt động
+- Thời lượng phải hợp lý với loại hoạt động (tham quan: 2-5 giờ, ăn uống: 1-2 giờ, mua sắm: 2-3 giờ)
+- Giá cả phải phù hợp với thực tế tại ${location} (miễn phí cho các điểm tham quan công cộng, có giá cho các dịch vụ)
+
+FORMAT JSON (chỉ trả về JSON array, không có text thêm):
 [
   {
-    "name": "Tên hoạt động",
-    "description": "Mô tả ngắn gọn",
+    "name": "Tên hoạt động cụ thể và nổi tiếng",
+    "description": "Mô tả ngắn gọn về điểm đặc biệt và lý do nổi tiếng (1-2 câu)",
     "category": "Tham quan",
-    "duration_hours": 2.0,
-    "price_per_person": 50000,
-    "location": "${destination}",
-    "image_keyword": "vietnam temple"
+    "duration_hours": 3.0,
+    "price_per_person": 150000,
+    "location": "${location}",
+    "image_keyword": "từ khóa tiếng Anh để tìm ảnh (ví dụ: 'golden bridge vietnam', 'hoi an ancient town', 'halong bay')"
   },
   ...
 ]
 
-Chỉ trả về JSON array, không có text thêm.`;
+Hãy trả về đúng 10-15 hoạt động nổi bật nhất tại ${location}, đảm bảo đa dạng về thể loại và thực sự là những hoạt động được nhiều du khách yêu thích.`;
 
     let aiActivities = [];
 
@@ -79,9 +109,9 @@ Chỉ trả về JSON array, không có text thêm.`;
           "gemini-pro"
         ];
         
-        const fullPrompt = `Bạn là chuyên gia tư vấn du lịch Việt Nam. Hãy trả về JSON array chính xác theo format yêu cầu.
+        const fullPrompt = `${prompt}
 
-${prompt}`;
+QUAN TRỌNG: Chỉ trả về JSON array thuần túy, không có text giải thích, không có markdown, không có code block. Bắt đầu ngay bằng dấu [ và kết thúc bằng dấu ].`;
 
         let result = null;
         let lastError = null;
@@ -111,43 +141,108 @@ ${prompt}`;
           if (jsonMatch) {
             aiActivities = JSON.parse(jsonMatch[0]);
             
-            // Validate và clean data
-            aiActivities = aiActivities
-              .filter(act => act.name && act.category && act.duration_hours)
-              .map(act => {
-                // Tạo URL ảnh từ Unsplash dựa trên image_keyword
-                let imageUrl = null;
-                if (act.image_keyword) {
-                  // Unsplash Source API - miễn phí, không cần API key
-                  const keyword = encodeURIComponent(act.image_keyword.trim());
-                  imageUrl = `https://source.unsplash.com/800x500/?${keyword}`;
-                } else {
-                  // Fallback: tạo keyword từ tên activity và location
-                  const fallbackKeyword = `${act.name} ${act.location || destination}`.toLowerCase()
-                    .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
-                    .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
-                    .replace(/[ìíịỉĩ]/g, 'i')
-                    .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
-                    .replace(/[ùúụủũưừứựửữ]/g, 'u')
-                    .replace(/[ỳýỵỷỹ]/g, 'y')
-                    .replace(/đ/g, 'd')
-                    .replace(/[^a-z0-9\s]/g, '')
-                    .replace(/\s+/g, ',');
-                  imageUrl = `https://source.unsplash.com/800x500/?${encodeURIComponent(fallbackKeyword)}`;
-                }
-                
-                return {
-                  name: act.name.trim(),
-                  description: (act.description || "").trim(),
-                  category: act.category.trim(),
-                  duration_hours: parseFloat(act.duration_hours) || 2.0,
-                  price_per_person: parseInt(act.price_per_person) || 0,
-                  location: act.location || destination,
-                  image: imageUrl,
-                  image_keyword: act.image_keyword || null
-                };
-              })
-              .slice(0, 12); // Giới hạn tối đa 12 activities
+            // Validate và clean data - Fetch ảnh từ Unsplash hoặc Pexels API
+            aiActivities = await Promise.all(
+              aiActivities
+                .filter(act => act.name && act.category && act.duration_hours)
+                .slice(0, 12) // Giới hạn tối đa 12 activities
+                .map(async (act) => {
+                  // Tạo URL ảnh từ Unsplash dựa trên image_keyword
+                  let imageUrl = null;
+                  
+                  if (act.image_keyword) {
+                    const keyword = act.image_keyword.trim();
+                    // Thử fetch từ Unsplash API nếu có key
+                    const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
+                    if (unsplashKey) {
+                      try {
+                        // Fetch ảnh từ Unsplash API
+                        const unsplashResponse = await fetch(
+                          `https://api.unsplash.com/photos/random?query=${encodeURIComponent(keyword)}&w=800&h=500&client_id=${unsplashKey}`
+                        );
+                        if (unsplashResponse.ok) {
+                          const photoData = await unsplashResponse.json();
+                          imageUrl = photoData.urls?.regular || photoData.urls?.small || null;
+                        }
+                      } catch (error) {
+                        console.warn(`Failed to fetch Unsplash image for "${keyword}":`, error.message);
+                      }
+                    }
+                    
+                    // Fallback nếu không có key hoặc fetch failed
+                    if (!imageUrl) {
+                      // Sử dụng Pexels API (miễn phí, không cần key)
+                      try {
+                        const pexelsResponse = await fetch(
+                          `https://api.pexels.com/v1/search?query=${encodeURIComponent(keyword)}&per_page=1&orientation=landscape`,
+                          {
+                            headers: {
+                              'Authorization': process.env.PEXELS_API_KEY || '' // Có thể để trống nếu không có key
+                            }
+                          }
+                        );
+                        if (pexelsResponse.ok) {
+                          const pexelsData = await pexelsResponse.json();
+                          if (pexelsData.photos && pexelsData.photos.length > 0) {
+                            imageUrl = pexelsData.photos[0].src?.large || pexelsData.photos[0].src?.medium || null;
+                          }
+                        }
+                      } catch (error) {
+                        console.warn(`Failed to fetch Pexels image for "${keyword}":`, error.message);
+                      }
+                    }
+                    
+                    // Fallback cuối cùng: Sử dụng placeholder hoặc random image
+                    if (!imageUrl) {
+                      // Sử dụng một placeholder service hoặc random image
+                      imageUrl = `https://picsum.photos/800/500?random=${Date.now()}&sig=${Math.random()}`;
+                    }
+                  } else {
+                    // Fallback: tạo keyword từ tên activity và location
+                    const fallbackKeyword = `${act.name} ${act.location || location || destination}`.toLowerCase()
+                      .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+                      .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+                      .replace(/[ìíịỉĩ]/g, 'i')
+                      .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+                      .replace(/[ùúụủũưừứựửữ]/g, 'u')
+                      .replace(/[ỳýỵỷỹ]/g, 'y')
+                      .replace(/đ/g, 'd')
+                      .replace(/[^a-z0-9\s]/g, '')
+                      .replace(/\s+/g, ' ');
+                    
+                    // Thử fetch với fallback keyword
+                    const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
+                    if (unsplashKey) {
+                      try {
+                        const unsplashResponse = await fetch(
+                          `https://api.unsplash.com/photos/random?query=${encodeURIComponent(fallbackKeyword)}&w=800&h=500&client_id=${unsplashKey}`
+                        );
+                        if (unsplashResponse.ok) {
+                          const photoData = await unsplashResponse.json();
+                          imageUrl = photoData.urls?.regular || photoData.urls?.small || null;
+                        }
+                      } catch (error) {
+                        console.warn(`Failed to fetch Unsplash image for fallback "${fallbackKeyword}":`, error.message);
+                      }
+                    }
+                    
+                    if (!imageUrl) {
+                      imageUrl = `https://picsum.photos/800/500?random=${Date.now()}&sig=${Math.random()}`;
+                    }
+                  }
+                  
+                  return {
+                    name: act.name.trim(),
+                    description: (act.description || "").trim(),
+                    category: act.category.trim(),
+                    duration_hours: parseFloat(act.duration_hours) || 2.0,
+                    price_per_person: parseInt(act.price_per_person) || 0,
+                    location: act.location || location || destination,
+                    image: imageUrl,
+                    image_keyword: act.image_keyword || null
+                  };
+                })
+            );
           }
         } catch (parseError) {
           console.error("Error parsing AI response:", parseError);

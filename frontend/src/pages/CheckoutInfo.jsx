@@ -2,8 +2,10 @@ import React, { useState, useEffect, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
+import { useToast } from "../components/Toast";
 
 export default function CheckoutInfo() {
+  const { showError, showWarning } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -68,7 +70,7 @@ export default function CheckoutInfo() {
         }
       } catch (error) {
         console.error("Error fetching tour:", error);
-        alert("Không thể tải thông tin tour");
+        showError("Không thể tải thông tin tour");
         navigate("/tours");
       } finally {
         setLoading(false);
@@ -138,16 +140,16 @@ export default function CheckoutInfo() {
 
   const handleNext = () => {
     if (!fullName || !email || !phone || !date) {
-      return alert("Vui lòng điền đủ thông tin");
+      return showWarning("Vui lòng điền đủ thông tin");
     }
     
     // Validate people count
     if (people <= 0) {
-      return alert("Số người phải lớn hơn 0");
+      return showWarning("Số người phải lớn hơn 0");
     }
     
     if (tour?.max_people && people > tour.max_people) {
-      return alert(`Số người tối đa cho tour này là ${tour.max_people} người`);
+      return showWarning(`Số người tối đa cho tour này là ${tour.max_people} người`);
     }
     
     // Validate date with available_dates
@@ -164,7 +166,7 @@ export default function CheckoutInfo() {
     if (availableDates.length > 0) {
       const selectedDateStr = date;
       if (!availableDates.includes(selectedDateStr)) {
-        return alert("Vui lòng chọn một trong các ngày khởi hành đã được chọn sẵn");
+        return showWarning("Vui lòng chọn một trong các ngày khởi hành đã được chọn sẵn");
       }
     } else if (tour?.departure_date) {
       // Fallback validation for backward compatibility
@@ -174,7 +176,7 @@ export default function CheckoutInfo() {
       selectedDate.setHours(0, 0, 0, 0);
       
       if (selectedDate.getTime() !== departureDate.getTime()) {
-        return alert(`Ngày đi phải là ${departureDate.toLocaleDateString('vi-VN')}`);
+        return showWarning(`Ngày đi phải là ${departureDate.toLocaleDateString('vi-VN')}`);
       }
     }
     

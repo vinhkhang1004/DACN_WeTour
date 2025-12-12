@@ -532,8 +532,10 @@ export default function Navbar() {
                     >
                       {user.avatar && user.avatar.trim() ? (
                         <img
-                          key={`avatar-${avatarKey}-${user.avatar?.substring(0, 50)}`} // Force re-render when avatar changes
-                          src={user.avatar}
+                          key={`avatar-${avatarKey}-${user.avatar?.substring(0, 50)}-${Date.now()}`} // Force re-render when avatar changes
+                          src={user.avatar.startsWith('data:') 
+                            ? user.avatar 
+                            : `${user.avatar}${user.avatar.includes('?') ? '&' : '?'}v=${Date.now()}`}
                           alt={user.name}
                           style={{
                             width: "100%",

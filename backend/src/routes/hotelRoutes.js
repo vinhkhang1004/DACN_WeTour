@@ -341,7 +341,7 @@ router.get("/:id", async (req, res) => {
 // ✅ Đặt phòng khách sạn (có thể là user hoặc guest)
 router.post("/:id/book", async (req, res) => {
   try {
-    const { check_in_date, check_out_date, adults, children, rooms, guest_name, guest_email, guest_phone, notes, promotion_code } = req.body;
+    const { check_in_date, check_out_date, adults, children, rooms, room_id, guest_name, guest_email, guest_phone, notes, promotion_code } = req.body;
     const hotelId = req.params.id;
 
     // Kiểm tra token (có thể có hoặc không)
@@ -385,8 +385,45 @@ router.post("/:id/book", async (req, res) => {
       return res.status(400).json({ message: "Ngày trả phòng phải sau ngày nhận phòng" });
     }
 
+    // Xử lý room_id và kiểm tra số lượng phòng còn lại
+    let selectedRoom = null;
+    let roomPrice = parseFloat(hotel.price_per_night) || 0;
+    const numberOfRooms = parseInt(rooms || 1);
+
+    if (room_id) {
+      // Tìm phòng được chọn
+      selectedRoom = await HotelRoom.findOne({
+        where: {
+          id: room_id,
+          hotel_id: hotelId
+        }
+      });
+
+      if (!selectedRoom) {
+        return res.status(404).json({ message: "Không tìm thấy loại phòng đã chọn" });
+      }
+
+      // Kiểm tra số lượng phòng còn lại
+      const currentQuantity = parseInt(selectedRoom.quantity || 0);
+      if (currentQuantity < numberOfRooms) {
+        return res.status(400).json({ 
+          message: `Chỉ còn ${currentQuantity} phòng. Vui lòng chọn số lượng phòng phù hợp.` 
+        });
+      }
+
+      // Kiểm tra status
+      if (selectedRoom.status !== "available") {
+        return res.status(400).json({ 
+          message: "Loại phòng này hiện không khả dụng" 
+        });
+      }
+
+      // Sử dụng giá của phòng cụ thể
+      roomPrice = parseFloat(selectedRoom.price_per_night || hotel.price_per_night || 0);
+    }
+
     // Tính tổng tiền
-    let totalPrice = parseFloat(hotel.price_per_night) * nights * parseInt(rooms || 1);
+    let totalPrice = roomPrice * nights * numberOfRooms;
     
     // Xử lý khuyến mãi
     let discount_amount = 0;
@@ -454,11 +491,12 @@ router.post("/:id/book", async (req, res) => {
       guest_email: userId ? null : (guest_email || null),
       guest_phone: userId ? null : (guest_phone || null),
       hotel_id: hotelId,
+      room_id: room_id || null, // Lưu room_id nếu có
       check_in_date,
       check_out_date,
       adults: parseInt(adults || 1),
       children: parseInt(children || 0),
-      rooms: parseInt(rooms || 1),
+      rooms: numberOfRooms,
       total_price: totalPrice,
       discount_amount: discount_amount,
       promotion_id: promotion_id,
@@ -469,15 +507,27 @@ router.post("/:id/book", async (req, res) => {
     console.log("📝 Creating hotel booking with data:", {
       user_id: bookingData.user_id,
       guest_email: bookingData.guest_email,
-      hotel_id: bookingData.hotel_id
+      hotel_id: bookingData.hotel_id,
+      room_id: bookingData.room_id,
+      rooms: bookingData.rooms
     });
     
     const booking = await HotelBooking.create(bookingData);
     
+    // Giảm số lượng phòng còn lại nếu có room_id
+    if (selectedRoom && room_id) {
+      const newQuantity = Math.max(0, parseInt(selectedRoom.quantity) - numberOfRooms);
+      await selectedRoom.update({
+        quantity: newQuantity
+      });
+      console.log(`✅ Updated room ${room_id} quantity: ${selectedRoom.quantity} -> ${newQuantity}`);
+    }
+    
     console.log("✅ Hotel booking created:", {
       id: booking.id,
       user_id: booking.user_id,
-      guest_email: booking.guest_email
+      guest_email: booking.guest_email,
+      room_id: booking.room_id
     });
 
     // Tạo notification cho admin về đặt phòng mới

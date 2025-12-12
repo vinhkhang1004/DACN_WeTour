@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
+import { useToast } from "../components/Toast";
 
 export default function FlightDetail() {
+  const { showError } = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -45,7 +47,7 @@ export default function FlightDetail() {
       }
     } catch (error) {
       console.error("Error fetching flight:", error);
-      alert("Không tìm thấy chuyến bay");
+      showError("Không tìm thấy chuyến bay");
       navigate("/flights");
     } finally {
       setLoading(false);

@@ -38,3 +38,4 @@ SELECT 'Migration completed: discount_amount and promotion_id columns added to h
 
 
 
+

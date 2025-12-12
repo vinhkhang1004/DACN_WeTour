@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import * as XLSX from 'xlsx';
+import { useToast } from '../components/Toast';
 
 export default function TourComparisonEnhanced() {
+  const { showError, showSuccess, showWarning } = useToast();
   const [comparisonTours, setComparisonTours] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -50,7 +52,7 @@ export default function TourComparisonEnhanced() {
 
   const saveComparison = () => {
     if (comparisonTours.length === 0) {
-      alert('Chưa có tour nào để xuất!');
+      showWarning('Chưa có tour nào để xuất!');
       return;
     }
 
@@ -129,10 +131,10 @@ export default function TourComparisonEnhanced() {
       // Write and download file
       XLSX.writeFile(wb, filename);
       
-      alert('Đã xuất file Excel thành công!');
+      showSuccess('Đã xuất file Excel thành công!');
     } catch (error) {
       console.error('Error exporting to Excel:', error);
-      alert('Có lỗi xảy ra khi xuất file Excel!');
+      showError('Có lỗi xảy ra khi xuất file Excel!');
     }
   };
 

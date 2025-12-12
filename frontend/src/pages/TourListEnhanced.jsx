@@ -4,8 +4,10 @@ import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import SearchAutosuggest from "../components/SearchAutosuggest";
 import { matchesSearch, normalizeSearchTerm } from "../utils/vietnameseUtils";
+import { useToast } from "../components/Toast";
 
 export default function TourListEnhanced() {
+  const { showError, showWarning } = useToast();
   const [tours, setTours] = useState([]);
   const [filteredTours, setFilteredTours] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +30,7 @@ export default function TourListEnhanced() {
   const [selectedDepartureDate, setSelectedDepartureDate] = useState("");
   const [availableDestinations, setAvailableDestinations] = useState([]);
   const [stats, setStats] = useState({ total: 0, minPrice: 0, maxPrice: 0 });
+  const [dateSuggestions, setDateSuggestions] = useState([]); // Lưu các tour gợi ý khi không có tour vào ngày đã chọn
   const { user } = useContext(AuthContext);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -74,6 +77,7 @@ export default function TourListEnhanced() {
     ])
       .then(([toursRes, recentRes, promosRes]) => {
         const toursData = toursRes.data || [];
+        console.log("Tours data received:", toursData.length, "tours");
         setTours(toursData);
         setFilteredTours(toursData);
         setRecentCounts(recentRes.data || {});
@@ -96,7 +100,25 @@ export default function TourListEnhanced() {
         
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((error) => {
+        console.error("Error fetching tours:", error);
+        console.error("Error details:", {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+          url: error.config?.url,
+          baseURL: error.config?.baseURL
+        });
+        setLoading(false);
+        // Show error toast
+        if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+          showError("Không thể kết nối đến server. Vui lòng kiểm tra backend server có đang chạy không.");
+        } else if (error.response?.status === 404) {
+          showError("API không tìm thấy. Vui lòng kiểm tra cấu hình server.");
+        } else {
+          showError("Có lỗi xảy ra khi tải dữ liệu: " + (error.response?.data?.message || error.message));
+        }
+      });
   }, []);
 
   // Load search parameters from URL
@@ -192,12 +214,13 @@ export default function TourListEnhanced() {
       });
     }
 
-    // Filter by departure date
+    // Filter by departure date - với logic gợi ý ngày gần nhất
     if (selectedDepartureDate) {
       const selectedDate = new Date(selectedDepartureDate);
       selectedDate.setHours(0, 0, 0, 0);
       
-      filtered = filtered.filter((tour) => {
+      // Tìm tour khớp chính xác ngày đã chọn
+      const exactMatchTours = filtered.filter((tour) => {
         // Check departure_date
         if (tour.departure_date) {
           const departureDate = new Date(tour.departure_date);
@@ -228,6 +251,72 @@ export default function TourListEnhanced() {
         
         return false;
       });
+      
+      // Nếu có tour khớp chính xác, dùng kết quả đó
+      if (exactMatchTours.length > 0) {
+        filtered = exactMatchTours;
+        setDateSuggestions([]);
+      } else {
+        // Nếu không có tour khớp chính xác, tìm các tour có ngày gần nhất (trong vòng ±7 ngày)
+        const suggestions = [];
+        const dateRange = 7; // Tìm trong vòng 7 ngày
+        
+        filtered.forEach((tour) => {
+          let closestDate = null;
+          let minDiff = Infinity;
+          
+          // Check departure_date
+          if (tour.departure_date) {
+            const departureDate = new Date(tour.departure_date);
+            departureDate.setHours(0, 0, 0, 0);
+            const diff = Math.abs((departureDate - selectedDate) / (1000 * 60 * 60 * 24));
+            if (diff <= dateRange && diff < minDiff) {
+              minDiff = diff;
+              closestDate = departureDate;
+            }
+          }
+          
+          // Check available_dates
+          if (tour.available_dates) {
+            try {
+              const availableDates = typeof tour.available_dates === 'string' 
+                ? JSON.parse(tour.available_dates) 
+                : tour.available_dates;
+              
+              if (Array.isArray(availableDates)) {
+                availableDates.forEach(dateStr => {
+                  const date = new Date(dateStr);
+                  date.setHours(0, 0, 0, 0);
+                  const diff = Math.abs((date - selectedDate) / (1000 * 60 * 60 * 24));
+                  if (diff <= dateRange && diff < minDiff) {
+                    minDiff = diff;
+                    closestDate = date;
+                  }
+                });
+              }
+            } catch (e) {
+              // Ignore parsing errors
+            }
+          }
+          
+          if (closestDate) {
+            suggestions.push({
+              tour,
+              closestDate,
+              daysDiff: Math.round(minDiff)
+            });
+          }
+        });
+        
+        // Sắp xếp theo khoảng cách ngày (gần nhất trước)
+        suggestions.sort((a, b) => a.daysDiff - b.daysDiff);
+        
+        // Lấy top 10 tour gần nhất
+        filtered = suggestions.slice(0, 10).map(s => s.tour);
+        setDateSuggestions(suggestions.slice(0, 10));
+      }
+    } else {
+      setDateSuggestions([]);
     }
 
     // Filter by tour type/category
@@ -354,7 +443,7 @@ export default function TourListEnhanced() {
 
   const toggleWishlist = (tour) => {
     if (!user) {
-      alert("Bạn cần đăng nhập để thêm vào danh sách yêu thích");
+      showWarning("Bạn cần đăng nhập để thêm vào danh sách yêu thích");
       return;
     }
 
@@ -381,7 +470,7 @@ export default function TourListEnhanced() {
       setComparisonTours([...comparisonTours, tour]);
       showToast("success", `Đã thêm "${tour.name}" vào so sánh`);
     } else {
-      alert("Bạn chỉ có thể so sánh tối đa 3 tour");
+      showWarning("Bạn chỉ có thể so sánh tối đa 3 tour");
     }
   };
 
@@ -878,17 +967,6 @@ export default function TourListEnhanced() {
             backgroundRepeat: "no-repeat"
           }}
         >
-          {/* Overlay for better text readability */}
-          <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "linear-gradient(135deg, rgba(14, 116, 144, 0.85) 0%, rgba(15, 118, 110, 0.75) 100%)",
-            zIndex: 1
-          }} />
-          
           {/* Content */}
           <div style={{ position: "relative", zIndex: 2, padding: "60px 20px" }}>
             <h1 style={{ 
@@ -921,8 +999,24 @@ export default function TourListEnhanced() {
           gap: "16px",
           flexWrap: "wrap"
         }}>
-          <div style={{ fontSize: "16px", color: "#64748b" }}>
-            Tìm thấy {filteredTours.length} tour phù hợp
+          <div>
+            <div style={{ fontSize: "16px", color: "#64748b", marginBottom: dateSuggestions.length > 0 ? "8px" : "0" }}>
+              Tìm thấy {filteredTours.length} tour phù hợp
+            </div>
+            {dateSuggestions.length > 0 && selectedDepartureDate && (
+              <div style={{ 
+                fontSize: "14px", 
+                color: "#f97316", 
+                background: "#fff7ed",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid #fed7aa",
+                marginTop: "8px"
+              }}>
+                ⚠️ Không có tour vào ngày {new Date(selectedDepartureDate).toLocaleDateString('vi-VN')}. 
+                Đang hiển thị các tour có ngày gần nhất (trong vòng ±7 ngày).
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             {/* View Mode Toggle */}
@@ -1226,9 +1320,21 @@ export default function TourListEnhanced() {
               >
                 <div style={{ fontSize: 48, marginBottom: "16px" }}>🔍</div>
                 <h3 style={{ margin: "0 0 8px", color: "#1e293b" }}>Không tìm thấy tour nào</h3>
-                <p style={{ margin: "0 0 24px", color: "#64748b" }}>
-                  Hãy thử điều chỉnh bộ lọc để tìm thấy tour phù hợp
-                </p>
+                {selectedDepartureDate && dateSuggestions.length === 0 ? (
+                  <>
+                    <p style={{ margin: "0 0 8px", color: "#64748b" }}>
+                      Không có tour vào ngày {new Date(selectedDepartureDate).toLocaleDateString('vi-VN')} 
+                      và không tìm thấy tour nào gần ngày này.
+                    </p>
+                    <p style={{ margin: "0 0 24px", color: "#64748b", fontSize: "14px" }}>
+                      Hãy thử chọn ngày khác hoặc điều chỉnh bộ lọc để tìm thấy tour phù hợp
+                    </p>
+                  </>
+                ) : (
+                  <p style={{ margin: "0 0 24px", color: "#64748b" }}>
+                    Hãy thử điều chỉnh bộ lọc để tìm thấy tour phù hợp
+                  </p>
+                )}
                 <button
                   onClick={clearFilters}
                   style={{

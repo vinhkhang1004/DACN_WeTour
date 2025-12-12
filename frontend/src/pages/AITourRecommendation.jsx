@@ -2,8 +2,10 @@ import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
+import { useToast } from "../components/Toast";
 
 export default function AITourRecommendation() {
+  const { showError, showWarning } = useToast();
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -25,7 +27,7 @@ export default function AITourRecommendation() {
     // Validate at least one field
     const hasData = Object.values(formData).some(val => val.trim() !== "");
     if (!hasData) {
-      alert("Vui lòng điền ít nhất một thông tin để nhận gợi ý");
+      showWarning("Vui lòng điền ít nhất một thông tin để nhận gợi ý");
       return;
     }
 
@@ -60,7 +62,7 @@ export default function AITourRecommendation() {
         errorMessage = error.response.data.message;
       }
       
-      alert(errorMessage);
+      showError(errorMessage);
       setRecommendations(null);
     } finally {
       setLoading(false);

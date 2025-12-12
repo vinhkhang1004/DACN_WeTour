@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { useToast } from "../components/Toast";
 
 export default function CustomTourDesign() {
+  const { showError, showWarning, showSuccess } = useToast();
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   
@@ -17,6 +19,13 @@ export default function CustomTourDesign() {
   const [tourType, setTourType] = useState("Nghỉ dưỡng");
   const [budget, setBudget] = useState(5000000);
   
+  // Tours state - Gợi ý tour theo destination
+  const [suggestedTours, setSuggestedTours] = useState([]);
+  const [selectedTour, setSelectedTour] = useState(null);
+  const [loadingTours, setLoadingTours] = useState(false);
+  const [baseTourPrice, setBaseTourPrice] = useState(1000000); // Giá tour mặc định: 1 triệu
+  const PRICE_PER_DAY = 500000; // Giá mỗi ngày thêm: 500k
+  
   // Activities state
   const [activities, setActivities] = useState([]);
   const [filteredActivities, setFilteredActivities] = useState([]);
@@ -24,7 +33,7 @@ export default function CustomTourDesign() {
   const [loadingAi, setLoadingAi] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Không loading khi chưa có destination
   
   // Itinerary state
   const [days, setDays] = useState([1]);
@@ -43,9 +52,10 @@ export default function CustomTourDesign() {
   const [saving, setSaving] = useState(false);
   const [savedTourId, setSavedTourId] = useState(null);
 
-  useEffect(() => {
-    fetchActivities();
-  }, []);
+  // Không fetch activities khi mount, chỉ fetch khi có destination
+  // useEffect(() => {
+  //   fetchActivities();
+  // }, []);
 
   useEffect(() => {
     filterActivities();
@@ -53,7 +63,7 @@ export default function CustomTourDesign() {
 
   useEffect(() => {
     calculateSummary();
-  }, [dayActivities, adults, children]);
+  }, [dayActivities, adults, children, days.length, baseTourPrice]);
 
   const fetchActivities = async (locationFilter = null) => {
     try {
@@ -114,7 +124,24 @@ export default function CustomTourDesign() {
     }
   };
 
+  // Fetch tours khi destination thay đổi
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (destination) {
+        const location = parseLocationFromDestination(destination);
+        fetchSuggestedTours(location || destination);
+      } else {
+        setSuggestedTours([]);
+        setSelectedTour(null);
+        setBaseTourPrice(0);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [destination]);
+
   // Fetch activities khi destination thay đổi (với debounce)
+  // Chỉ fetch khi có destination, không fetch tất cả activities
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (destination) {
@@ -124,11 +151,14 @@ export default function CustomTourDesign() {
           // Gọi AI để gợi ý activities
           fetchAiActivities();
         } else {
-          fetchActivities();
-          setAiActivities([]);
+          // Nếu không parse được location, vẫn fetch với destination gốc
+          fetchActivities(destination);
+          fetchAiActivities();
         }
       } else {
-        fetchActivities();
+        // Không có destination thì xóa activities và AI activities
+        setActivities([]);
+        setFilteredActivities([]);
         setAiActivities([]);
       }
     }, 800); // Debounce 800ms để tránh gọi quá nhiều
@@ -136,6 +166,30 @@ export default function CustomTourDesign() {
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destination, tourType, budget]);
+
+  // Fetch suggested tours
+  const fetchSuggestedTours = async (location) => {
+    try {
+      setLoadingTours(true);
+      const response = await api.get(`/tours?destination=${encodeURIComponent(location)}`);
+      const toursData = response.data || [];
+      setSuggestedTours(toursData.slice(0, 6)); // Giới hạn 6 tours
+    } catch (error) {
+      console.error("Error fetching suggested tours:", error);
+      setSuggestedTours([]);
+    } finally {
+      setLoadingTours(false);
+    }
+  };
+
+  // Handle tour selection
+  const handleSelectTour = (tour) => {
+    setSelectedTour(tour);
+    // Nếu tour có giá, dùng giá tour, nếu không thì dùng giá mặc định 1 triệu
+    setBaseTourPrice(tour.price || 1000000);
+    // Cập nhật estimated cost với giá tour cơ bản
+    calculateSummary();
+  };
 
   const filterActivities = () => {
     let filtered = [...activities];
@@ -197,9 +251,17 @@ export default function CustomTourDesign() {
   };
 
   const calculateSummary = () => {
-    let cost = 0;
-    let hours = 0;
+    // Giá tour cơ bản: 1 triệu (hoặc giá tour được chọn)
+    let cost = baseTourPrice || 1000000;
     
+    // Tính giá theo số ngày: ngày đầu tiên đã tính trong baseTourPrice, các ngày sau mỗi ngày thêm PRICE_PER_DAY
+    const numberOfDays = days.length;
+    if (numberOfDays > 1) {
+      cost += (numberOfDays - 1) * PRICE_PER_DAY;
+    }
+    
+    // Tính giá activities
+    let hours = 0;
     Object.values(dayActivities).forEach(dayActs => {
       dayActs.forEach(item => {
         let activity = null;
@@ -229,6 +291,54 @@ export default function CustomTourDesign() {
     const newDay = Math.max(...days) + 1;
     setDays([...days, newDay]);
     setSelectedDay(newDay);
+  };
+
+  const handleRemoveDay = (dayToRemove) => {
+    // Không cho phép xóa ngày 1 (phải có ít nhất 1 ngày)
+    if (dayToRemove === 1 || days.length === 1) {
+      showWarning("Không thể xóa ngày đầu tiên. Phải có ít nhất 1 ngày trong lịch trình.");
+      return;
+    }
+
+    // Xác nhận trước khi xóa
+    if (!window.confirm(`Bạn có chắc muốn xóa Ngày ${dayToRemove}? Tất cả hoạt động trong ngày này sẽ bị xóa.`)) {
+      return;
+    }
+
+    // Xóa activities của ngày đó
+    const newDayActivities = { ...dayActivities };
+    delete newDayActivities[dayToRemove];
+    
+    // Điều chỉnh lại số thứ tự các ngày sau ngày bị xóa
+    const updatedDayActivities = {};
+    Object.keys(newDayActivities).forEach(day => {
+      const dayNum = parseInt(day);
+      if (dayNum > dayToRemove) {
+        // Giảm số thứ tự các ngày sau ngày bị xóa
+        updatedDayActivities[dayNum - 1] = newDayActivities[dayNum];
+      } else {
+        updatedDayActivities[dayNum] = newDayActivities[dayNum];
+      }
+    });
+    setDayActivities(updatedDayActivities);
+
+    // Xóa ngày khỏi danh sách và đánh số lại
+    const newDays = days.filter(day => day !== dayToRemove);
+    const renumberedDays = newDays.map((_, index) => index + 1);
+    setDays(renumberedDays);
+
+    // Nếu ngày đang chọn bị xóa, chuyển sang ngày trước đó hoặc ngày đầu tiên
+    if (selectedDay === dayToRemove) {
+      const previousDay = dayToRemove - 1;
+      if (renumberedDays.includes(previousDay)) {
+        setSelectedDay(previousDay);
+      } else {
+        setSelectedDay(renumberedDays[0] || 1);
+      }
+    } else if (selectedDay > dayToRemove) {
+      // Nếu ngày đang chọn lớn hơn ngày bị xóa, giảm đi 1
+      setSelectedDay(selectedDay - 1);
+    }
   };
 
   const handleAddActivity = (activity) => {
@@ -268,12 +378,12 @@ export default function CustomTourDesign() {
 
   const handleSaveDraft = async () => {
     if (!destination || !startDate || !endDate) {
-      alert("Vui lòng điền đầy đủ thông tin: Điểm đến, Ngày đi, Ngày về");
+      showWarning("Vui lòng điền đầy đủ thông tin: Điểm đến, Ngày đi, Ngày về");
       return;
     }
     
     if (!user && (!guestName || !guestEmail || !guestPhone)) {
-      alert("Vui lòng điền thông tin liên hệ");
+      showWarning("Vui lòng điền thông tin liên hệ");
       return;
     }
     
@@ -309,7 +419,7 @@ export default function CustomTourDesign() {
       if (savedTourId) {
         // Update existing tour - cần token (interceptor sẽ tự động thêm)
         if (!token) {
-          alert("Vui lòng đăng nhập để cập nhật tour đã lưu");
+          showWarning("Vui lòng đăng nhập để cập nhật tour đã lưu");
           setSaving(false);
           return;
         }
@@ -322,10 +432,10 @@ export default function CustomTourDesign() {
         }
       }
       
-      alert("Đã lưu nháp thành công!");
+      showSuccess("Đã lưu nháp thành công!");
     } catch (error) {
       console.error("Error saving draft:", error);
-      alert("Có lỗi xảy ra khi lưu nháp: " + (error.response?.data?.message || error.message));
+      showError("Có lỗi xảy ra khi lưu nháp: " + (error.response?.data?.message || error.message));
     } finally {
       setSaving(false);
     }
@@ -333,12 +443,12 @@ export default function CustomTourDesign() {
 
   const handleSubmit = async () => {
     if (!destination || !startDate || !endDate) {
-      alert("Vui lòng điền đầy đủ thông tin: Điểm đến, Ngày đi, Ngày về");
+      showWarning("Vui lòng điền đầy đủ thông tin: Điểm đến, Ngày đi, Ngày về");
       return;
     }
     
     if (!user && (!guestName || !guestEmail || !guestPhone)) {
-      alert("Vui lòng điền thông tin liên hệ");
+      showWarning("Vui lòng điền thông tin liên hệ");
       return;
     }
     
@@ -353,7 +463,7 @@ export default function CustomTourDesign() {
     });
     
     if (allActivities.length === 0) {
-      alert("Vui lòng thêm ít nhất một hoạt động vào lịch trình");
+      showWarning("Vui lòng thêm ít nhất một hoạt động vào lịch trình");
       return;
     }
     
@@ -376,11 +486,11 @@ export default function CustomTourDesign() {
       // Interceptor sẽ tự động thêm token nếu có
       const response = await api.post("/custom-tours", payload);
       
-      alert("Đã gửi yêu cầu thiết kế tour! Admin sẽ xem xét và liên hệ với bạn sớm nhất.");
+      showSuccess("Đã gửi yêu cầu thiết kế tour! Admin sẽ xem xét và liên hệ với bạn sớm nhất.");
       navigate("/");
     } catch (error) {
       console.error("Error submitting tour:", error);
-      alert("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
+      showError("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
     } finally {
       setSaving(false);
     }
@@ -407,13 +517,18 @@ export default function CustomTourDesign() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f5f5f5" }}>
-      {/* Header */}
-      <div style={{ background: "#fff", padding: "20px 0", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 20px" }}>
-          <h1 style={{ fontSize: "32px", margin: "0 0 8px", fontWeight: 700, color: "#1e293b" }}>
+      {/* Hero Section */}
+      <div style={{ 
+        background: "linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.5)), url('https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1920&q=80') center/cover no-repeat",
+        padding: "80px 20px 60px",
+        color: "#fff",
+        position: "relative"
+      }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+          <h1 style={{ fontSize: "36px", margin: "0 0 12px", fontWeight: 700, color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
             Tự Thiết Kế Hành Trình Của Riêng Bạn
           </h1>
-          <p style={{ fontSize: "16px", margin: 0, color: "#64748b" }}>
+          <p style={{ fontSize: "18px", margin: 0, opacity: 0.95, textShadow: "0 1px 5px rgba(0,0,0,0.2)" }}>
             Tạo một tour du lịch cá nhân hóa bằng cách chọn điểm đến, hoạt động, thời gian, và ngân sách của bạn.
           </p>
         </div>
@@ -644,6 +759,124 @@ export default function CustomTourDesign() {
 
         {/* Main Content */}
         <div style={{ flex: 1 }}>
+          {/* Suggested Tours Section */}
+          {destination && (
+            <div style={{ marginBottom: "24px" }}>
+              <h3 style={{ fontSize: "18px", marginBottom: "16px", fontWeight: 600, color: "#1e293b" }}>
+                🎯 Gợi ý Tour đến {parseLocationFromDestination(destination) || destination}
+              </h3>
+              {loadingTours ? (
+                <div style={{ textAlign: "center", padding: "40px", background: "#fff", borderRadius: "12px" }}>
+                  <div style={{ fontSize: 24, color: "#0E7490" }}>🔄</div>
+                  <p style={{ marginTop: 16, color: "#64748b" }}>Đang tải tour...</p>
+                </div>
+              ) : suggestedTours.length > 0 ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+                  {suggestedTours.map((tour) => (
+                    <div
+                      key={tour.id}
+                      onClick={() => handleSelectTour(tour)}
+                      style={{
+                        background: "#fff",
+                        borderRadius: "12px",
+                        overflow: "hidden",
+                        boxShadow: selectedTour?.id === tour.id ? "0 4px 12px rgba(14, 116, 144, 0.3)" : "0 2px 8px rgba(0,0,0,0.1)",
+                        border: selectedTour?.id === tour.id ? "2px solid #0E7490" : "2px solid transparent",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        position: "relative"
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedTour?.id !== tour.id) {
+                          e.currentTarget.style.transform = "translateY(-4px)";
+                          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedTour?.id !== tour.id) {
+                          e.currentTarget.style.transform = "translateY(0)";
+                          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+                        }
+                      }}
+                    >
+                      {selectedTour?.id === tour.id && (
+                        <div style={{
+                          position: "absolute",
+                          top: "12px",
+                          right: "12px",
+                          background: "#0E7490",
+                          color: "#fff",
+                          padding: "6px 12px",
+                          borderRadius: "20px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          zIndex: 10
+                        }}>
+                          ✓ Đã chọn
+                        </div>
+                      )}
+                      <img
+                        src={tour.image || "https://via.placeholder.com/400x250?text=Tour"}
+                        alt={tour.name}
+                        style={{
+                          width: "100%",
+                          height: "180px",
+                          objectFit: "cover"
+                        }}
+                        onError={(e) => {
+                          e.target.src = "https://via.placeholder.com/400x250?text=Tour";
+                        }}
+                      />
+                      <div style={{ padding: "16px" }}>
+                        <h4 style={{ margin: "0 0 8px", fontSize: "16px", fontWeight: 600, color: "#1e293b" }}>
+                          {tour.name}
+                        </h4>
+                        <p style={{ margin: "0 0 8px", fontSize: "14px", color: "#64748b", lineHeight: "1.5" }}>
+                          {tour.description?.substring(0, 80) || "Tour du lịch hấp dẫn"}
+                          {tour.description && tour.description.length > 80 && "..."}
+                        </p>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px" }}>
+                          <div>
+                            <div style={{ fontSize: "12px", color: "#64748b" }}>
+                              📍 {tour.destination}
+                            </div>
+                            {tour.duration && (
+                              <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+                                ⏱️ {tour.duration}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: "18px", fontWeight: 700, color: "#0E7490" }}>
+                              {Number(tour.price || 0).toLocaleString()}₫
+                            </div>
+                            <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
+                              Giá cơ bản
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{
+                  textAlign: "center",
+                  padding: "40px",
+                  background: "#f8fafc",
+                  borderRadius: "12px",
+                  border: "2px dashed #cbd5e1"
+                }}>
+                  <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗺️</div>
+                  <p style={{ fontSize: "16px", color: "#64748b", margin: 0 }}>
+                    Không tìm thấy tour nào đến "{parseLocationFromDestination(destination) || destination}". 
+                    Bạn có thể tự thiết kế tour bằng cách thêm các hoạt động bên dưới.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Activity Search */}
           <div style={{ background: "#fff", borderRadius: "12px", padding: "20px", marginBottom: "24px", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
             <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
@@ -719,6 +952,47 @@ export default function CustomTourDesign() {
                 )}
               </div>
             </div>
+            
+            {/* Hiển thị message nếu chưa chọn tỉnh/thành */}
+            {!destination ? (
+              <div style={{
+                textAlign: "center",
+                padding: "60px 20px",
+                background: "#f8fafc",
+                borderRadius: "12px",
+                border: "2px dashed #cbd5e1"
+              }}>
+                <div style={{ fontSize: "48px", marginBottom: "16px" }}>📍</div>
+                <h3 style={{ fontSize: "20px", marginBottom: "8px", color: "#1e293b", fontWeight: 600 }}>
+                  Chọn điểm đến để xem các hoạt động
+                </h3>
+                <p style={{ fontSize: "16px", color: "#64748b", margin: 0 }}>
+                  Vui lòng nhập tỉnh/thành phố bạn muốn đến ở phần "Lên Kế Hoạch Cho Chuyến Đi" để xem các hoạt động có sẵn tại địa điểm đó.
+                </p>
+              </div>
+            ) : loading ? (
+              <div style={{ textAlign: "center", padding: "60px 20px" }}>
+                <div style={{ fontSize: 24, color: "#0E7490" }}>🔄</div>
+                <p style={{ marginTop: 16, color: "#64748b" }}>Đang tải hoạt động...</p>
+              </div>
+            ) : filteredActivities.length === 0 ? (
+              <div style={{
+                textAlign: "center",
+                padding: "60px 20px",
+                background: "#f8fafc",
+                borderRadius: "12px",
+                border: "2px dashed #cbd5e1"
+              }}>
+                <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
+                <h3 style={{ fontSize: "20px", marginBottom: "8px", color: "#1e293b", fontWeight: 600 }}>
+                  Không tìm thấy hoạt động
+                </h3>
+                <p style={{ fontSize: "16px", color: "#64748b", margin: 0 }}>
+                  Không có hoạt động nào tại "{parseLocationFromDestination(destination) || destination}". 
+                  {loadingAi ? " AI đang tạo gợi ý..." : " Hãy thử tìm kiếm với từ khóa khác hoặc chọn địa điểm khác."}
+                </p>
+              </div>
+            ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
               {filteredActivities.map((activity, index) => (
                 <div
@@ -798,6 +1072,7 @@ export default function CustomTourDesign() {
                 </div>
               ))}
             </div>
+            )}
           </div>
 
           {/* Itinerary Builder */}
@@ -809,23 +1084,69 @@ export default function CustomTourDesign() {
             {/* Day Tabs */}
             <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexWrap: "wrap" }}>
               {days.map(day => (
-                <button
+                <div
                   key={day}
-                  onClick={() => setSelectedDay(day)}
                   style={{
-                    padding: "10px 20px",
-                    border: "none",
-                    borderRadius: "8px",
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    background: selectedDay === day ? "#0E7490" : "#f3f4f6",
-                    color: selectedDay === day ? "#fff" : "#374151",
-                    transition: "all 0.2s"
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    position: "relative"
                   }}
                 >
-                  Ngày {day}
-                </button>
+                  <button
+                    onClick={() => setSelectedDay(day)}
+                    style={{
+                      padding: "10px 20px",
+                      border: "none",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      background: selectedDay === day ? "#0E7490" : "#f3f4f6",
+                      color: selectedDay === day ? "#fff" : "#374151",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    Ngày {day}
+                  </button>
+                  {day > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm(`Bạn có chắc muốn xóa Ngày ${day}? Tất cả hoạt động trong ngày này sẽ bị xóa.`)) {
+                          handleRemoveDay(day);
+                        }
+                      }}
+                      style={{
+                        padding: "6px 10px",
+                        border: "none",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        background: "#fee2e2",
+                        color: "#dc2626",
+                        transition: "all 0.2s",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: "32px",
+                        height: "32px"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "#fecaca";
+                        e.currentTarget.style.transform = "scale(1.05)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "#fee2e2";
+                        e.currentTarget.style.transform = "scale(1)";
+                      }}
+                      title={`Xóa Ngày ${day}`}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               ))}
               <button
                 onClick={handleAddDay}
@@ -837,7 +1158,16 @@ export default function CustomTourDesign() {
                   fontWeight: 500,
                   cursor: "pointer",
                   background: "transparent",
-                  color: "#64748b"
+                  color: "#64748b",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#0E7490";
+                  e.currentTarget.style.color = "#0E7490";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                  e.currentTarget.style.color = "#64748b";
                 }}
               >
                 +
@@ -949,10 +1279,36 @@ export default function CustomTourDesign() {
         <div style={{ maxWidth: 1400, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
           <div style={{ display: "flex", gap: "32px", alignItems: "center" }}>
             <div>
-              <span style={{ fontSize: "14px", color: "#64748b" }}>Chi phí ước tính: </span>
-              <span style={{ fontSize: "18px", fontWeight: 700, color: "#0E7490" }}>
-                {estimatedCost.toLocaleString()}₫
-              </span>
+              <div style={{ marginBottom: "8px" }}>
+                <span style={{ fontSize: "12px", color: "#64748b" }}>Giá tour cơ bản: </span>
+                <span style={{ fontSize: "14px", fontWeight: 600, color: "#0E7490" }}>
+                  {baseTourPrice.toLocaleString()}₫
+                </span>
+              </div>
+              {days.length > 1 && (
+                <div style={{ marginBottom: "8px" }}>
+                  <span style={{ fontSize: "12px", color: "#64748b" }}>
+                    Thêm {days.length - 1} ngày ({(PRICE_PER_DAY / 1000).toFixed(0)}k₫/ngày): 
+                  </span>
+                  <span style={{ fontSize: "14px", fontWeight: 600, color: "#f59e0b" }}>
+                    +{((days.length - 1) * PRICE_PER_DAY).toLocaleString()}₫
+                  </span>
+                </div>
+              )}
+              {Object.values(dayActivities).flat().length > 0 && (
+                <div style={{ marginBottom: "8px" }}>
+                  <span style={{ fontSize: "12px", color: "#64748b" }}>Giá hoạt động: </span>
+                  <span style={{ fontSize: "14px", fontWeight: 600, color: "#10b981" }}>
+                    +{(Math.round(estimatedCost - baseTourPrice - ((days.length > 1 ? (days.length - 1) * PRICE_PER_DAY : 0)))).toLocaleString()}₫
+                  </span>
+                </div>
+              )}
+              <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid #e5e7eb" }}>
+                <span style={{ fontSize: "14px", color: "#64748b", fontWeight: 600 }}>Tổng chi phí: </span>
+                <span style={{ fontSize: "18px", fontWeight: 700, color: "#0E7490" }}>
+                  {estimatedCost.toLocaleString()}₫
+                </span>
+              </div>
             </div>
             <div>
               <span style={{ fontSize: "14px", color: "#64748b" }}>Tổng thời gian: </span>

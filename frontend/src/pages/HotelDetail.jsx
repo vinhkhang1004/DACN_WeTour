@@ -3,8 +3,10 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import api from "../services/api";
 import { AuthContext } from "../context/AuthContext";
 import DatePicker from "../components/DatePicker";
+import { useToast } from "../components/Toast";
 
 export default function HotelDetail() {
+  const { showError, showSuccess } = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
@@ -127,7 +129,7 @@ export default function HotelDetail() {
       }
     } catch (error) {
       console.error("Error fetching hotel:", error);
-      alert("Không tìm thấy khách sạn");
+      showError("Không tìm thấy khách sạn");
       navigate("/hotels");
     } finally {
       setLoading(false);
@@ -230,7 +232,7 @@ export default function HotelDetail() {
         }
       );
 
-      alert(userReview ? "Cập nhật đánh giá thành công!" : "Đánh giá thành công!");
+      showSuccess(userReview ? "Cập nhật đánh giá thành công!" : "Đánh giá thành công!");
       setShowReviewForm(false);
       setReviewForm({ rating: 5, comment: "" });
       await fetchReviews();
@@ -241,7 +243,7 @@ export default function HotelDetail() {
       fetchUserReview();
       fetchHotel(); // Refresh để cập nhật user_score
     } catch (error) {
-      alert(error.response?.data?.message || "Có lỗi xảy ra khi đánh giá");
+      showError(error.response?.data?.message || "Có lỗi xảy ra khi đánh giá");
     } finally {
       setSubmittingReview(false);
     }
@@ -255,12 +257,12 @@ export default function HotelDetail() {
       await api.delete(`/hotel-reviews/${userReview.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert("Xóa đánh giá thành công!");
+      showSuccess("Xóa đánh giá thành công!");
       setUserReview(null);
       await fetchReviews();
       await fetchHotel(); // Cập nhật lại hotel data để đồng bộ reviewCount và averageRating
     } catch (error) {
-      alert(error.response?.data?.message || "Có lỗi xảy ra");
+      showError(error.response?.data?.message || "Có lỗi xảy ra");
     }
   };
 
@@ -272,7 +274,7 @@ export default function HotelDetail() {
   const handleCheckAvailability = () => {
     // Kiểm tra đã chọn phòng chưa
     if (!selectedRoom) {
-      alert("Vui lòng chọn loại phòng mà bạn muốn");
+      showWarning("Vui lòng chọn loại phòng mà bạn muốn");
       return;
     }
     

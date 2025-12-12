@@ -1,14 +1,16 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { useToast } from "./Toast";
 
 export default function Footer() {
+  const { showWarning } = useToast();
   const [email, setEmail] = useState("");
   const [isSubscribed, setIsSubscribed] = useState(false);
 
   const handleNewsletterSubmit = (e) => {
     e.preventDefault();
     if (!email) {
-      alert("Vui lòng nhập email");
+      showWarning("Vui lòng nhập email");
       return;
     }
     // Simulate subscription

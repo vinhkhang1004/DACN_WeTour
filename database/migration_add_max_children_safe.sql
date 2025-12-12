@@ -40,3 +40,4 @@ WHERE `image` IS NOT NULL AND `image` != '' AND (`images` IS NULL OR `images` = 
 SELECT 'Migration completed: max_children and images columns added to hotel_rooms' AS result;
 
 
+
