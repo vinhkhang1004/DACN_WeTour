@@ -3,10 +3,11 @@ import querystring from "querystring";
 
 // VNPay Configuration
 const VNPAY_CONFIG = {
-  vnp_TmnCode: process.env.VNPAY_TMN_CODE || "DEMO",
-  vnp_HashSecret: process.env.VNPAY_HASH_SECRET || "DEMO_SECRET",
+  vnp_TmnCode: process.env.VNPAY_TMN_CODE || "393SYWBD",
+  vnp_HashSecret: process.env.VNPAY_HASH_SECRET || "WPFNMC7ESCCCJ4ICEY2Q068WH43HY7OQ",
   vnp_Url: process.env.VNPAY_URL || "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
   vnp_ReturnUrl: process.env.VNPAY_RETURN_URL || "http://localhost:5000/api/payments/vnpay-callback",
+  vnp_IpnUrl: process.env.VNPAY_IPN_URL || "http://localhost:5000/api/payments/vnpay-ipn",
   vnp_Api: process.env.VNPAY_API || "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction",
 };
 
@@ -22,11 +23,38 @@ const MOMO_CONFIG = {
 
 /**
  * VNPay Payment
+ * @param {string} orderId - Order ID
+ * @param {number} amount - Amount in VND
+ * @param {string} orderDescription - Order description
+ * @param {string} ipAddr - IP address
+ * @param {string} returnUrl - Optional return URL (defaults to VNPAY_CONFIG.vnp_ReturnUrl)
  */
-export const createVNPayPaymentUrl = (orderId, amount, orderDescription, ipAddr) => {
+export const createVNPayPaymentUrl = (orderId, amount, orderDescription, ipAddr, returnUrl = null) => {
   const date = new Date();
   const createDate = formatDate(date);
   const expireDate = formatDate(new Date(date.getTime() + 15 * 60 * 1000)); // 15 minutes
+
+  // Clean order description - VNPay requires ASCII only, no Vietnamese characters
+  // Convert Vietnamese to ASCII equivalent or use simple English
+  const cleanOrderDescription = orderDescription
+    .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+    .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+    .replace(/[ìíịỉĩ]/g, 'i')
+    .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+    .replace(/[ùúụủũưừứựửữ]/g, 'u')
+    .replace(/[ỳýỵỷỹ]/g, 'y')
+    .replace(/[đ]/g, 'd')
+    .replace(/[ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ]/g, 'A')
+    .replace(/[ÈÉẸẺẼÊỀẾỆỂỄ]/g, 'E')
+    .replace(/[ÌÍỊỈĨ]/g, 'I')
+    .replace(/[ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ]/g, 'O')
+    .replace(/[ÙÚỤỦŨƯỪỨỰỬỮ]/g, 'U')
+    .replace(/[ỲÝỴỶỸ]/g, 'Y')
+    .replace(/[Đ]/g, 'D')
+    .replace(/[^\w\s-]/g, '') // Remove any remaining special characters
+    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+    .trim()
+    .substring(0, 255); // Max 255 characters
 
   const vnp_Params = {
     vnp_Version: "2.1.0",
@@ -35,14 +63,20 @@ export const createVNPayPaymentUrl = (orderId, amount, orderDescription, ipAddr)
     vnp_Locale: "vn",
     vnp_CurrCode: "VND",
     vnp_TxnRef: orderId,
-    vnp_OrderInfo: orderDescription,
+    vnp_OrderInfo: cleanOrderDescription,
     vnp_OrderType: "other",
     vnp_Amount: Math.round(amount * 100), // Convert to cents, ensure integer
-    vnp_ReturnUrl: VNPAY_CONFIG.vnp_ReturnUrl,
+    vnp_ReturnUrl: returnUrl || VNPAY_CONFIG.vnp_ReturnUrl,
     vnp_IpAddr: ipAddr,
     vnp_CreateDate: createDate,
     vnp_ExpireDate: expireDate,
   };
+
+  // Only add IPN URL if it's a public URL (not localhost)
+  // VNPay sandbox may reject localhost IPN URLs
+  if (VNPAY_CONFIG.vnp_IpnUrl && !VNPAY_CONFIG.vnp_IpnUrl.includes('localhost')) {
+    vnp_Params.vnp_IpnUrl = VNPAY_CONFIG.vnp_IpnUrl;
+  }
 
   // Remove empty/null values before sorting
   const cleanParams = {};
@@ -56,17 +90,27 @@ export const createVNPayPaymentUrl = (orderId, amount, orderDescription, ipAddr)
   // Sort and sign - VNPay requires alphabetical order
   const sortedParams = sortObject(cleanParams);
   
-  // Create query string - VNPay requires specific format
-  // According to VNPay docs, use querystring.stringify() which handles encoding correctly
-  // This ensures compatibility with VNPay's signature verification
-  const queryString = querystring.stringify(sortedParams);
+  // Create query string - VNPay requires spaces to be replaced with +, not %20
+  // Build query string manually to ensure proper format
+  const queryParts = [];
+  Object.keys(sortedParams).forEach(key => {
+    const value = String(sortedParams[key]);
+    // VNPay requires: spaces should be +, not %20
+    // Use encodeURIComponent then replace %20 with +
+    const encoded = encodeURIComponent(value).replace(/%20/g, '+');
+    queryParts.push(`${key}=${encoded}`);
+  });
+  const queryString = queryParts.join('&');
   
-  // Debug logging (remove in production)
+  // Debug logging
   console.log("\n=== VNPay Signature Debug ===");
   console.log("TMN Code:", VNPAY_CONFIG.vnp_TmnCode);
   console.log("Hash Secret Length:", VNPAY_CONFIG.vnp_HashSecret.length);
   console.log("Hash Secret (first 10):", VNPAY_CONFIG.vnp_HashSecret.substring(0, 10));
   console.log("Return URL:", VNPAY_CONFIG.vnp_ReturnUrl);
+  console.log("IPN URL:", VNPAY_CONFIG.vnp_IpnUrl);
+  console.log("Order Description (original):", orderDescription);
+  console.log("Order Description (cleaned):", cleanOrderDescription);
   console.log("Params Count:", Object.keys(sortedParams).length);
   console.log("\nSorted Params:");
   Object.keys(sortedParams).forEach(key => {
@@ -78,6 +122,7 @@ export const createVNPayPaymentUrl = (orderId, amount, orderDescription, ipAddr)
   
   // Create signature using the query string (without vnp_SecureHash)
   // VNPay uses SHA512 HMAC with the hash secret
+  // IMPORTANT: Use the exact query string format from querystring.stringify()
   const vnp_SecureHash = crypto
     .createHmac("sha512", VNPAY_CONFIG.vnp_HashSecret)
     .update(queryString)
@@ -85,6 +130,7 @@ export const createVNPayPaymentUrl = (orderId, amount, orderDescription, ipAddr)
 
   console.log("\nSignature (full):", vnp_SecureHash);
   console.log("Signature Length:", vnp_SecureHash.length);
+  console.log("Final URL (first 200 chars):", `${VNPAY_CONFIG.vnp_Url}?${queryString.substring(0, 200)}...`);
   console.log("=============================\n");
 
   // Return URL with signature appended
@@ -97,7 +143,16 @@ export const verifyVNPayCallback = (vnp_Params) => {
   delete vnp_Params["vnp_SecureHashType"];
 
   const sortedParams = sortObject(vnp_Params);
-  const queryString = querystring.stringify(sortedParams);
+  
+  // Use same format as createVNPayPaymentUrl - spaces as +, not %20
+  const queryParts = [];
+  Object.keys(sortedParams).forEach(key => {
+    const value = String(sortedParams[key]);
+    const encoded = encodeURIComponent(value).replace(/%20/g, '+');
+    queryParts.push(`${key}=${encoded}`);
+  });
+  const queryString = queryParts.join('&');
+  
   const checkSum = crypto
     .createHmac("sha512", VNPAY_CONFIG.vnp_HashSecret)
     .update(queryString)

@@ -300,13 +300,52 @@ export default function AdminManage() {
               <td>{b.people_count}</td>
               <td>{b.total_price.toLocaleString()}₫</td>
               <td style={{ maxWidth: "200px", wordWrap: "break-word" }}>
-                {b.notes ? (
-                  <span title={b.notes} style={{ fontSize: "12px", color: "#64748b" }}>
-                    {b.notes.length > 50 ? `${b.notes.substring(0, 50)}...` : b.notes}
-                  </span>
-                ) : (
-                  <span style={{ color: "#9ca3af", fontStyle: "italic" }}>Không có</span>
-                )}
+                {(() => {
+                  if (!b.notes) {
+                    return <span style={{ color: "#9ca3af", fontStyle: "italic" }}>Không có</span>;
+                  }
+                  
+                  // Format notes - remove technical JSON
+                  let cleanNotes = b.notes;
+                  let peopleInfo = null;
+                  
+                  // Try to extract people info - match both __PEOPLE_INFO__: and _PEOPLE_INFO_:
+                  const peopleInfoMatch = b.notes.match(/(?:__|_)PEOPLE_INFO(?:_|__):(.+?)(?:\n|$)/);
+                  if (peopleInfoMatch) {
+                    try {
+                      peopleInfo = JSON.parse(peopleInfoMatch[1]);
+                      // Remove the people info part from notes (handle both formats)
+                      cleanNotes = b.notes
+                        .replace(/__PEOPLE_INFO__:.+?(?:\n|$)/g, '')
+                        .replace(/_PEOPLE_INFO_:.+?(?:\n|$)/g, '')
+                        .trim();
+                    } catch (e) {
+                      cleanNotes = b.notes
+                        .replace(/__PEOPLE_INFO__:.+?(?:\n|$)/g, '')
+                        .replace(/_PEOPLE_INFO_:.+?(?:\n|$)/g, '')
+                        .trim();
+                    }
+                  }
+                  
+                  return (
+                    <div>
+                      {cleanNotes && (
+                        <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }} title={cleanNotes}>
+                          {cleanNotes.length > 50 ? `${cleanNotes.substring(0, 50)}...` : cleanNotes}
+                        </div>
+                      )}
+                      {peopleInfo && (
+                        <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px" }}>
+                          👥 {peopleInfo.adults || 0} người lớn
+                          {peopleInfo.children > 0 && `, ${peopleInfo.children} trẻ em`}
+                        </div>
+                      )}
+                      {!cleanNotes && !peopleInfo && (
+                        <span style={{ color: "#9ca3af", fontStyle: "italic" }}>Không có</span>
+                      )}
+                    </div>
+                  );
+                })()}
               </td>
               <td>
                 {b.status === "completed" ? (

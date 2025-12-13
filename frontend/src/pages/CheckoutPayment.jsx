@@ -175,7 +175,7 @@ export default function CheckoutPayment() {
                 transition: "all 0.2s",
               }}
             >
-              <div style={{ fontSize: 24, marginBottom: 8 }}>💰</div>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>🏦</div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>VNPay</div>
               <div style={{ fontSize: 11, color: "#64748b" }}>Thẻ ngân hàng</div>
             </div>

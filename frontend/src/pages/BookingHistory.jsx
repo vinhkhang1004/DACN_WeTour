@@ -163,7 +163,7 @@ export default function BookingHistory() {
       try {
         if (method === "vnpay") {
           const response = await api.post(
-            "/flights/payment/vnpay/create",
+            "/flight-payments/vnpay/create",
             { flight_booking_id: selectedFlightBooking.id },
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -176,7 +176,7 @@ export default function BookingHistory() {
           }
         } else if (method === "momo") {
           const response = await api.post(
-            "/flights/payment/momo/create",
+            "/flight-payments/momo/create",
             { flight_booking_id: selectedFlightBooking.id },
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -194,7 +194,7 @@ export default function BookingHistory() {
           }
           
           const response = await api.post(
-            "/flights/payment/cash",
+            "/flight-payments/cash",
             { flight_booking_id: selectedFlightBooking.id },
             { headers: { Authorization: `Bearer ${token}` } }
           );

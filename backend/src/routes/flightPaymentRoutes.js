@@ -55,7 +55,8 @@ router.post("/vnpay/create", verifyToken, async (req, res) => {
     const flightInfo = booking.OutboundFlight 
       ? `${booking.OutboundFlight.airline} ${booking.OutboundFlight.flight_number}`
       : "Flight";
-    const orderDescription = `Thanh toán đặt vé máy bay: ${flightInfo}`;
+    // Use simple English description to avoid encoding issues with VNPay
+    const orderDescription = `Payment for flight ${flightInfo}`;
     let ipAddr = req.ip || req.connection.remoteAddress || "127.0.0.1";
 
     // Convert IPv6 localhost to IPv4
@@ -71,7 +72,12 @@ router.post("/vnpay/create", verifyToken, async (req, res) => {
     console.log("Amount:", amount);
     console.log("Order ID:", orderId);
 
-    const paymentUrl = createVNPayPaymentUrl(orderId, amount, orderDescription, ipAddr);
+    // Use flight-specific return URL
+    const flightReturnUrl = process.env.VNPAY_FLIGHT_RETURN_URL || 
+                          `${process.env.BACKEND_URL || "http://localhost:5000"}/api/flight-payments/vnpay-callback`;
+    console.log("Return URL:", flightReturnUrl);
+
+    const paymentUrl = createVNPayPaymentUrl(orderId, amount, orderDescription, ipAddr, flightReturnUrl);
 
     console.log("Payment URL created successfully");
 
@@ -169,18 +175,58 @@ router.post("/momo/create", verifyToken, async (req, res) => {
 router.get("/vnpay-callback", async (req, res) => {
   try {
     const vnp_Params = req.query;
+    
+    console.log("\n=== VNPay Callback Received (Flight) ===");
+    console.log("Query params:", JSON.stringify(vnp_Params, null, 2));
+    console.log("Order ID (vnp_TxnRef):", vnp_Params["vnp_TxnRef"]);
+    console.log("Response Code:", vnp_Params["vnp_ResponseCode"]);
 
     if (verifyVNPayCallback(vnp_Params)) {
+      console.log("✅ Signature verified");
       const orderId = vnp_Params["vnp_TxnRef"];
       const responseCode = vnp_Params["vnp_ResponseCode"];
 
       // Extract booking ID from orderId (format: FB{bookingId}_{timestamp})
-      const bookingIdMatch = orderId.match(/FB(\d+)/);
-      if (!bookingIdMatch) {
-        return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Invalid order ID`);
+      // Support both formats: FB{id}_{timestamp} (new) and FB{id}{timestamp} (old)
+      let bookingId;
+      if (orderId.includes('_')) {
+        // New format: FB{bookingId}_{timestamp}
+        const parts = orderId.split('_');
+        if (parts[0].startsWith('FB')) {
+          bookingId = parseInt(parts[0].replace('FB', ''));
+        } else {
+          console.error("Invalid order ID format (new):", orderId);
+          return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Invalid order ID format`);
+        }
+      } else {
+        // Old format: FB{bookingId}{timestamp} - need to extract booking ID
+        const bookingIdMatch = orderId.match(/^FB(\d+)/);
+        if (!bookingIdMatch) {
+          console.error("Invalid order ID format (old):", orderId);
+          return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Invalid order ID`);
+        }
+        const fullNumber = bookingIdMatch[1];
+        // Try different booking ID lengths (1-8 digits)
+        let found = false;
+        for (let len = Math.min(8, fullNumber.length); len >= 1; len--) {
+          const testId = parseInt(fullNumber.substring(0, len));
+          const testBooking = await FlightBooking.findByPk(testId);
+          if (testBooking) {
+            bookingId = testId;
+            found = true;
+            console.log(`Found booking ID: ${bookingId} from order ID: ${orderId}`);
+            break;
+          }
+        }
+        if (!found) {
+          console.error("Booking not found for order ID:", orderId);
+          return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Booking not found`);
+        }
       }
-
-      const bookingId = parseInt(bookingIdMatch[1]);
+      
+      console.log("Extracted booking ID:", bookingId, "from order ID:", orderId);
+      console.log("Looking for booking in database...");
+      
       const booking = await FlightBooking.findByPk(bookingId, {
         include: [
           { model: Flight, as: "OutboundFlight", required: false },
@@ -190,8 +236,34 @@ router.get("/vnpay-callback", async (req, res) => {
       });
 
       if (!booking) {
+        console.error("❌ Booking not found in database:", bookingId);
+        console.log("Checking recent bookings...");
+        try {
+          const recentBookings = await FlightBooking.findAll({
+            limit: 10,
+            order: [['id', 'DESC']],
+            attributes: ['id', 'user_id', 'outbound_flight_id', 'status', 'total_price']
+          });
+          console.log("Recent bookings (last 10):", recentBookings.map(b => ({
+            id: b.id,
+            user_id: b.user_id,
+            outbound_flight_id: b.outbound_flight_id,
+            status: b.status,
+            total_price: b.total_price
+          })));
+        } catch (err) {
+          console.error("Error fetching recent bookings:", err);
+        }
         return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Booking not found`);
       }
+      
+      console.log("✅ Booking found:", {
+        id: booking.id,
+        user_id: booking.user_id,
+        outbound_flight_id: booking.outbound_flight_id,
+        status: booking.status,
+        total_price: booking.total_price
+      });
 
       if (responseCode === "00") {
         // Payment success - update payment status

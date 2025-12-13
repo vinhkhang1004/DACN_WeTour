@@ -57,12 +57,32 @@ router.post("/vnpay/create", verifyToken, async (req, res) => {
     }
 
     // VNPay requires unique order ID (max 100 chars)
-    const orderId = `VN${booking.id}${Date.now()}`;
+    // Format: VN{bookingId}_{timestamp} - use underscore to separate for easy extraction
+    const orderId = `VN${booking.id}_${Date.now()}`;
     const amount = Number(booking.total_price);
-    // VNPay requires order description to be URL-safe and max 255 chars
-    // Remove special characters that might cause encoding issues
-    const tourName = (booking.Tour?.name || "Tour").replace(/[^\w\s-]/g, '').substring(0, 100);
-    const orderDescription = `Thanh toan tour ${tourName} - Booking #${booking.id}`.substring(0, 255);
+    // VNPay requires order description to be ASCII only (no Vietnamese characters)
+    // Convert Vietnamese to ASCII or use simple English
+    const tourName = (booking.Tour?.name || "Tour")
+      .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+      .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+      .replace(/[ìíịỉĩ]/g, 'i')
+      .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+      .replace(/[ùúụủũưừứựửữ]/g, 'u')
+      .replace(/[ỳýỵỷỹ]/g, 'y')
+      .replace(/[đ]/g, 'd')
+      .replace(/[ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ]/g, 'A')
+      .replace(/[ÈÉẸẺẼÊỀẾỆỂỄ]/g, 'E')
+      .replace(/[ÌÍỊỈĨ]/g, 'I')
+      .replace(/[ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ]/g, 'O')
+      .replace(/[ÙÚỤỦŨƯỪỨỰỬỮ]/g, 'U')
+      .replace(/[ỲÝỴỶỸ]/g, 'Y')
+      .replace(/[Đ]/g, 'D')
+      .replace(/[^\w\s-]/g, '') // Remove any remaining special characters
+      .replace(/\s+/g, ' ') // Replace multiple spaces
+      .trim()
+      .substring(0, 100);
+    // Use simple English description to avoid encoding issues with VNPay
+    const orderDescription = `Payment for tour ${tourName} - Booking ${booking.id}`.substring(0, 255);
     // Get real IP address (consider X-Forwarded-For for production)
     // VNPay requires IPv4 format, not IPv6
     let ipAddr = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
@@ -187,25 +207,94 @@ router.post("/momo/create", verifyToken, async (req, res) => {
 router.get("/vnpay-callback", async (req, res) => {
   try {
     const vnp_Params = req.query;
+    
+    console.log("\n=== VNPay Callback Received ===");
+    console.log("Query params:", JSON.stringify(vnp_Params, null, 2));
+    console.log("Order ID (vnp_TxnRef):", vnp_Params["vnp_TxnRef"]);
+    console.log("Response Code:", vnp_Params["vnp_ResponseCode"]);
 
     if (verifyVNPayCallback(vnp_Params)) {
+      console.log("✅ Signature verified");
       const orderId = vnp_Params["vnp_TxnRef"];
       const responseCode = vnp_Params["vnp_ResponseCode"];
 
-      // Extract booking ID from orderId (format: VN{bookingId}{timestamp})
-      const bookingIdMatch = orderId.match(/VN(\d+)/);
-      if (!bookingIdMatch) {
-        return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Invalid order ID`);
+      // Extract booking ID from orderId (format: VN{bookingId}_{timestamp})
+      // Support both formats: VN{id}_{timestamp} (new) and VN{id}{timestamp} (old)
+      let bookingId;
+      if (orderId.includes('_')) {
+        // New format: VN{bookingId}_{timestamp}
+        const parts = orderId.split('_');
+        if (parts[0].startsWith('VN')) {
+          bookingId = parseInt(parts[0].replace('VN', ''));
+        } else {
+          console.error("Invalid order ID format (new):", orderId);
+          return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Invalid order ID format`);
+        }
+      } else {
+        // Old format: VN{bookingId}{timestamp} - need to extract booking ID
+        // Try to find booking by checking database
+        const bookingIdMatch = orderId.match(/^VN(\d+)/);
+        if (!bookingIdMatch) {
+          console.error("Invalid order ID format (old):", orderId);
+          return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Invalid order ID`);
+        }
+        const fullNumber = bookingIdMatch[1];
+        // Try different booking ID lengths (1-8 digits)
+        let found = false;
+        for (let len = Math.min(8, fullNumber.length); len >= 1; len--) {
+          const testId = parseInt(fullNumber.substring(0, len));
+          const testBooking = await Booking.findByPk(testId);
+          if (testBooking) {
+            bookingId = testId;
+            found = true;
+            console.log(`Found booking ID: ${bookingId} from order ID: ${orderId}`);
+            break;
+          }
+        }
+        if (!found) {
+          console.error("Booking not found for order ID:", orderId);
+          return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Booking not found`);
+        }
       }
-
-      const bookingId = parseInt(bookingIdMatch[1]);
+      
+      console.log("Extracted booking ID:", bookingId, "from order ID:", orderId);
+      console.log("Looking for booking in database...");
+      
       const booking = await Booking.findByPk(bookingId, {
         include: [{ model: Tour }, { model: User }, { model: Payment }],
       });
 
       if (!booking) {
+        console.error("❌ Booking not found in database:", bookingId);
+        console.log("Checking recent bookings...");
+        try {
+          const recentBookings = await Booking.findAll({
+            limit: 10,
+            order: [['id', 'DESC']],
+            attributes: ['id', 'user_id', 'tour_id', 'status', 'total_price']
+          });
+          console.log("Recent bookings (last 10):", recentBookings.map(b => ({
+            id: b.id,
+            user_id: b.user_id,
+            tour_id: b.tour_id,
+            status: b.status,
+            total_price: b.total_price
+          })));
+        } catch (err) {
+          console.error("Error fetching recent bookings:", err);
+        }
         return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Booking not found`);
       }
+      
+      console.log("✅ Booking found:", {
+        id: booking.id,
+        user_id: booking.user_id,
+        tour_id: booking.tour_id,
+        status: booking.status,
+        total_price: booking.total_price,
+        has_tour: !!booking.Tour,
+        has_user: !!booking.User
+      });
 
       if (responseCode === "00") {
         // Payment success
@@ -369,6 +458,152 @@ router.post("/momo-notify", async (req, res) => {
   } catch (error) {
     console.error("Error processing MoMo IPN:", error);
     return res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * VNPay IPN (Instant Payment Notification) Handler
+ * Server-to-server notification from VNPay
+ */
+router.post("/vnpay-ipn", async (req, res) => {
+  try {
+    const vnp_Params = req.query;
+    
+    console.log("\n=== VNPay IPN Notification ===");
+    console.log("Received params:", JSON.stringify(vnp_Params, null, 2));
+
+    // Verify signature
+    if (!verifyVNPayCallback(vnp_Params)) {
+      console.error("Invalid VNPay IPN signature");
+      return res.status(400).json({ 
+        RspCode: "97", 
+        Message: "Invalid signature" 
+      });
+    }
+
+    const orderId = vnp_Params["vnp_TxnRef"];
+    const responseCode = vnp_Params["vnp_ResponseCode"];
+    const transactionNo = vnp_Params["vnp_TransactionNo"];
+
+    // Extract booking ID from orderId (format: VN{bookingId}_{timestamp} or VN{bookingId}{timestamp})
+    let bookingId;
+    if (orderId.includes('_')) {
+      // New format: VN{bookingId}_{timestamp}
+      const parts = orderId.split('_');
+      if (parts[0].startsWith('VN')) {
+        bookingId = parseInt(parts[0].replace('VN', ''));
+      } else {
+        console.error("Invalid order ID format (new):", orderId);
+        return res.status(400).json({ 
+          RspCode: "01", 
+          Message: "Invalid order ID" 
+        });
+      }
+    } else {
+      // Old format: VN{bookingId}{timestamp}
+      const bookingIdMatch = orderId.match(/^VN(\d+)/);
+      if (!bookingIdMatch) {
+        console.error("Invalid order ID format (old):", orderId);
+        return res.status(400).json({ 
+          RspCode: "01", 
+          Message: "Invalid order ID" 
+        });
+      }
+      const fullNumber = bookingIdMatch[1];
+      // Try different booking ID lengths
+      let found = false;
+      for (let len = Math.min(8, fullNumber.length); len >= 1; len--) {
+        const testId = parseInt(fullNumber.substring(0, len));
+        const testBooking = await Booking.findByPk(testId);
+        if (testBooking) {
+          bookingId = testId;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        console.error("Booking not found for order ID:", orderId);
+        return res.status(404).json({ 
+          RspCode: "01", 
+          Message: "Booking not found" 
+        });
+      }
+    }
+    const booking = await Booking.findByPk(bookingId, {
+      include: [{ model: Tour }, { model: User }],
+    });
+
+    if (!booking) {
+      console.error("Booking not found:", bookingId);
+      return res.status(404).json({ 
+        RspCode: "01", 
+        Message: "Booking not found" 
+      });
+    }
+
+    // Only process if payment is successful and booking is not already paid
+    if (responseCode === "00" && booking.status !== "paid") {
+      booking.status = "paid";
+      await booking.save();
+
+      const payment = await Payment.findOne({ where: { booking_id: booking.id } });
+      if (payment) {
+        payment.status = "success";
+        payment.transaction_code = transactionNo || orderId;
+        await payment.save();
+      } else {
+        // Create payment record if it doesn't exist
+        await Payment.create({
+          booking_id: booking.id,
+          method: "vnpay",
+          amount: booking.total_price,
+          status: "success",
+          transaction_code: transactionNo || orderId,
+        });
+      }
+
+      // Send confirmation email
+      try {
+        if (booking.User && booking.Tour) {
+          const payment = await Payment.findOne({ where: { booking_id: booking.id } });
+          await sendPaymentConfirmationEmail(booking.User, booking, booking.Tour, payment);
+        }
+      } catch (emailError) {
+        console.error("Error sending payment email:", emailError);
+      }
+
+      console.log("Payment processed successfully for booking:", bookingId);
+      return res.status(200).json({ 
+        RspCode: "00", 
+        Message: "Success" 
+      });
+    } else if (responseCode !== "00") {
+      // Payment failed
+      const payment = await Payment.findOne({ where: { booking_id: booking.id } });
+      if (payment && payment.status === "pending") {
+        payment.status = "failed";
+        await payment.save();
+      }
+      
+      console.log("Payment failed for booking:", bookingId, "Response code:", responseCode);
+      return res.status(200).json({ 
+        RspCode: "00", 
+        Message: "Payment failed notification received" 
+      });
+    } else {
+      // Already processed
+      console.log("Payment already processed for booking:", bookingId);
+      return res.status(200).json({ 
+        RspCode: "00", 
+        Message: "Already processed" 
+      });
+    }
+  } catch (error) {
+    console.error("Error processing VNPay IPN:", error);
+    return res.status(500).json({ 
+      RspCode: "99", 
+      Message: "Server error" 
+    });
   }
 });
 

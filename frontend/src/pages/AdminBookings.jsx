@@ -63,6 +63,36 @@ export default function AdminBookings() {
     }
   };
 
+  // Format notes - remove technical JSON and display user-friendly info
+  const formatNotes = (notes) => {
+    if (!notes) return { cleanNotes: null, peopleInfo: null };
+    
+    // Remove __PEOPLE_INFO__ or _PEOPLE_INFO_ pattern and parse JSON
+    let cleanNotes = notes;
+    let peopleInfo = null;
+    
+    // Try to extract people info - match both __PEOPLE_INFO__: and _PEOPLE_INFO_:
+    const peopleInfoMatch = notes.match(/(?:__|_)PEOPLE_INFO(?:_|__):(.+?)(?:\n|$)/);
+    if (peopleInfoMatch) {
+      try {
+        peopleInfo = JSON.parse(peopleInfoMatch[1]);
+        // Remove the people info part from notes (handle both formats)
+        cleanNotes = notes
+          .replace(/__PEOPLE_INFO__:.+?(?:\n|$)/g, '')
+          .replace(/_PEOPLE_INFO_:.+?(?:\n|$)/g, '')
+          .trim();
+      } catch (e) {
+        // If JSON parse fails, just remove the pattern
+        cleanNotes = notes
+          .replace(/__PEOPLE_INFO__:.+?(?:\n|$)/g, '')
+          .replace(/_PEOPLE_INFO_:.+?(?:\n|$)/g, '')
+          .trim();
+      }
+    }
+    
+    return { cleanNotes: cleanNotes || null, peopleInfo };
+  };
+
   if (loading) {
     return <LoadingSpinner size="large" text="Đang tải danh sách đặt tour..." />;
   }
@@ -144,13 +174,29 @@ export default function AdminBookings() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
-                        {b.notes ? (
-                          <div className="truncate" title={b.notes}>
-                            {b.notes.length > 50 ? `${b.notes.substring(0, 50)}...` : b.notes}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 italic">Không có</span>
-                        )}
+                        {(() => {
+                          const { cleanNotes, peopleInfo } = formatNotes(b.notes);
+                          return (
+                            <div>
+                              {cleanNotes && (
+                                <div className="mb-1" title={cleanNotes}>
+                                  <span className="text-gray-700">
+                                    {cleanNotes.length > 40 ? `${cleanNotes.substring(0, 40)}...` : cleanNotes}
+                                  </span>
+                                </div>
+                              )}
+                              {peopleInfo && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  👥 {peopleInfo.adults || 0} người lớn
+                                  {peopleInfo.children > 0 && `, ${peopleInfo.children} trẻ em`}
+                                </div>
+                              )}
+                              {!cleanNotes && !peopleInfo && (
+                                <span className="text-gray-400 italic">Không có</span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(b.status)}

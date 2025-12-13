@@ -271,7 +271,20 @@ export default function HotelBooking() {
     }
     
     try {
-      if (method === "momo") {
+      if (method === "vnpay") {
+        const response = await api.post(
+          "/hotels/payment/vnpay/create",
+          { hotel_booking_id: selectedBooking.id },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        if (response.data.paymentUrl) {
+          window.location.href = response.data.paymentUrl;
+        } else {
+          showError("Không thể tạo link thanh toán VNPay");
+          setProcessing(false);
+        }
+      } else if (method === "momo") {
         const response = await api.post(
           "/hotels/payment/momo/create",
           { hotel_booking_id: selectedBooking.id },
@@ -1183,7 +1196,27 @@ export default function HotelBooking() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+              <button
+                onClick={() => processPayment("vnpay")}
+                disabled={processing}
+                style={{
+                  border: "2px solid #0E7490",
+                  borderRadius: 8,
+                  padding: 16,
+                  cursor: processing ? "not-allowed" : "pointer",
+                  background: "#f0f9ff",
+                  textAlign: "center",
+                  transition: "all 0.2s",
+                  opacity: processing ? 0.6 : 1
+                }}
+                onMouseEnter={(e) => !processing && (e.currentTarget.style.background = "#e0f2fe")}
+                onMouseLeave={(e) => !processing && (e.currentTarget.style.background = "#f0f9ff")}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600 }}>VNPay</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>Thẻ ngân hàng</div>
+              </button>
+              
               <button
                 onClick={() => processPayment("momo")}
                 disabled={processing}

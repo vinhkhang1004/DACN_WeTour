@@ -53,7 +53,19 @@ router.post("/vnpay/create", verifyToken, async (req, res) => {
 
     // Tạo order ID
     const orderId = `CT${customTour.id}_${Date.now()}`;
-    const orderDescription = `Thanh toán tour tự thiết kế: ${customTour.destination}`;
+    // Use simple English description to avoid encoding issues with VNPay
+    const destination = (customTour.destination || "Destination")
+      .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+      .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+      .replace(/[ìíịỉĩ]/g, 'i')
+      .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+      .replace(/[ùúụủũưừứựửữ]/g, 'u')
+      .replace(/[ỳýỵỷỹ]/g, 'y')
+      .replace(/[đ]/g, 'd')
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const orderDescription = `Payment for custom tour ${destination}`;
     const ipAddr = req.ip || req.connection.remoteAddress || "127.0.0.1";
 
     console.log("\n=== Creating VNPay Payment URL for Custom Tour ===");
@@ -172,22 +184,67 @@ router.post("/momo/create", verifyToken, async (req, res) => {
 router.get("/vnpay/callback", async (req, res) => {
   try {
     const vnp_Params = req.query;
+    
+    console.log("\n=== VNPay Callback Received (Custom Tour) ===");
+    console.log("Query params:", JSON.stringify(vnp_Params, null, 2));
+    console.log("Order ID (vnp_TxnRef):", vnp_Params["vnp_TxnRef"]);
+    console.log("Response Code:", vnp_Params["vnp_ResponseCode"]);
+    
     const orderId = vnp_Params["vnp_TxnRef"];
 
     if (!orderId || !orderId.startsWith("CT")) {
+      console.error("Invalid order ID format:", orderId);
       return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Invalid order ID`);
     }
 
-    // Extract custom_tour_id from orderId (format: CT{id}_{timestamp})
-    const customTourId = parseInt(orderId.split("_")[0].replace("CT", ""));
+    // Extract custom_tour_id from orderId (format: CT{id}_{timestamp} or CT{id}{timestamp})
+    let customTourId;
+    if (orderId.includes('_')) {
+      // New format: CT{id}_{timestamp}
+      customTourId = parseInt(orderId.split("_")[0].replace("CT", ""));
+    } else {
+      // Old format: CT{id}{timestamp}
+      const bookingIdMatch = orderId.match(/^CT(\d+)/);
+      if (!bookingIdMatch) {
+        console.error("Invalid order ID format (old):", orderId);
+        return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Invalid order ID`);
+      }
+      const fullNumber = bookingIdMatch[1];
+      // Try different ID lengths (1-8 digits)
+      let found = false;
+      for (let len = Math.min(8, fullNumber.length); len >= 1; len--) {
+        const testId = parseInt(fullNumber.substring(0, len));
+        const testTour = await CustomTour.findByPk(testId);
+        if (testTour) {
+          customTourId = testId;
+          found = true;
+          console.log(`Found custom tour ID: ${customTourId} from order ID: ${orderId}`);
+          break;
+        }
+      }
+      if (!found) {
+        console.error("Custom tour not found for order ID:", orderId);
+        return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Tour not found`);
+      }
+    }
+    
+    console.log("Extracted custom tour ID:", customTourId, "from order ID:", orderId);
 
     const customTour = await CustomTour.findByPk(customTourId, {
       include: [{ model: User }]
     });
 
     if (!customTour) {
+      console.error("❌ Custom tour not found in database:", customTourId);
       return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=Tour not found`);
     }
+    
+    console.log("✅ Custom tour found:", {
+      id: customTour.id,
+      user_id: customTour.user_id,
+      status: customTour.status,
+      total_price: customTour.total_price
+    });
 
     const isValid = verifyVNPayCallback(vnp_Params);
 
